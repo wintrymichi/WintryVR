@@ -1,0 +1,29 @@
+{
+    "name": "WintryVR.Meta",
+    "rootNamespace": "WintryVR.Meta",
+    "references": [
+        "WintryVR.Runtime",
+        "Oculus.VR",
+        "Meta.XR.MRUtilityKit"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.meta.xr.sdk.core",
+            "expression": "",
+            "define": "WINTRY_META_XR"
+        },
+        {
+            "name": "com.meta.xr.mrutilitykit",
+            "expression": "",
+            "define": "WINTRY_MRUK"
+        }
+    ],
+    "noEngineReferences": false
+}

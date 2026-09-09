@@ -1,0 +1,31 @@
+{
+  "AiProvider": "auto",
+  "AiBaseUrl": "",
+  "AiModel": "",
+  "LocalAiBaseUrl": "http://192.168.1.10:11434/v1",
+  "LocalAiModel": "llava",
+  "AiTimeoutSeconds": 45,
+
+  "SttProvider": "auto",
+  "SttBaseUrl": "",
+  "SttModel": "whisper-1",
+  "TtsProvider": "auto",
+  "TtsBaseUrl": "",
+  "TtsModel": "tts-1",
+  "TtsVoice": "alloy",
+
+  "SearchProvider": "auto",
+  "SearchBaseUrl": "",
+
+  "AssetGenProvider": "auto",
+  "AssetGenBaseUrl": "",
+
+  "CameraProvider": "auto",
+  "CaptureMaxWidth": 1024,
+  "CaptureJpegQuality": 80,
+
+  "DemoMode": false,
+  "DebugPanel": false,
+  "VerboseLogging": false,
+  "ForceOffline": false
+}
