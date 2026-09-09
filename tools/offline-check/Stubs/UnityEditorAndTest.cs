@@ -1,4 +1,5 @@
 // Faithful-signature stubs of UnityEditor and NUnit APIs, for offline compile verification only.
+#pragma warning disable 0067 // events here are declarations only; the stand-ins never raise them
 using System;
 using System.Collections;
 using System.Collections.Generic;

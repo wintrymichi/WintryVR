@@ -1,5 +1,6 @@
 // Approximate stubs of the Meta XR SDK / MRUK surface, used ONLY to cross-check WintryVR's own types.
 // Meta's real signatures vary by SDK version; nothing here should be treated as authoritative.
+#pragma warning disable 0067 // events here are declarations only; the stand-ins never raise them
 using System;
 using System.Collections;
 using System.Collections.Generic;
