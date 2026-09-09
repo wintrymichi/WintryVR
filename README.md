@@ -231,3 +231,24 @@ LOD distances, performance budgets).
 * `docs/META_SDK_NOTES.md` — exact Meta APIs used and what to check per SDK version
 
 Tests: **Window → General → Test Runner → EditMode** (intents, memory, JSON, voice, assistant parsing, textures/LODs).
+
+---
+
+## Verification status
+
+The C# in this repository has been compiled and the EditMode tests executed outside Unity, against a
+hand-written stand-in for the Unity API that keeps Unity's real signatures. Four configurations build with
+zero errors and zero warnings: editor, Android player, the Meta platform assembly, and the test assembly.
+All 56 EditMode test cases pass while running the project's own logic.
+
+| Verified offline | Still needs Unity or the headset |
+|---|---|
+| C# compiles for editor, Android and Meta configurations | Shader compilation (`WintryGlass`, `WintryGlow`) |
+| 56/56 EditMode test cases pass | Scene and prefab loading, serialised references |
+| JSON, asmdef and Android manifest parse | Meta XR and MRUK API shapes for your SDK version |
+| Every asset has a unique `.meta` GUID | Player settings, XR loader and URP asset assignment |
+
+`ProjectSettings/` holds only the editor version, so Unity generates default settings on first open. Run
+**WintryVR → Setup → Configure Player Settings for Quest 3 & 3S**, then
+**WintryVR → Setup → Verify project setup** to see what is still missing, and
+**WintryVR → Setup → Enable XR loader for Android** to switch the loader on when XR Plug-in Management is installed.

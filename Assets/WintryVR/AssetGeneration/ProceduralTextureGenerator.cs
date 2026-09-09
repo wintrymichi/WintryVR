@@ -58,8 +58,8 @@ namespace WintryVR.AssetGeneration
                         case "circuit":
                             {
                                 // grid of traces with pads: quantised noise lines
-                                float gx = Mathf.Abs(Mathf.Frac(u * scale * 2f) - 0.5f);
-                                float gy = Mathf.Abs(Mathf.Frac(v * scale * 2f) - 0.5f);
+                                float gx = Mathf.Abs(Mathf.Repeat(u * scale * 2f, 1f) - 0.5f);
+                                float gy = Mathf.Abs(Mathf.Repeat(v * scale * 2f, 1f) - 0.5f);
                                 float cell = Mathf.PerlinNoise(Mathf.Floor(u * scale * 2f) * 0.37f + ox, Mathf.Floor(v * scale * 2f) * 0.37f + oy);
                                 bool horizontal = cell > 0.5f;
                                 float line = horizontal ? gy : gx;

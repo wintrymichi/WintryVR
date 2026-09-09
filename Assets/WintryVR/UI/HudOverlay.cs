@@ -15,7 +15,6 @@ namespace WintryVR.UI
         private Transform _root;
         private Material _camMat, _micMat, _cloudMat;
         private TextMesh _status, _subtitle;
-        private WorldLabel _statusLabel;
         private string _statusText = "";
         private float _subtitleUntil;
         private bool _online = true;

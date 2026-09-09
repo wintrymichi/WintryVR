@@ -57,14 +57,14 @@ namespace WintryVR.Core
             var c = new DeviceCapabilities();
             c.IsEditor = Application.isEditor;
             c.HeadsetName = Application.isEditor ? "Editor" : SystemInfo.deviceModel;
-            c.Microphone = Microphone.devices != null && Microphone.devices.Length > 0;
+            c.Microphone = UnityEngine.Microphone.devices != null && UnityEngine.Microphone.devices.Length > 0;
             c.Network = Application.internetReachability != NetworkReachability.NotReachable;
             c.SpatialAudio = true; // Unity AudioSource spatialisation always available
             c.XRRuntimeActive = UnityEngine.XR.XRSettings.isDeviceActive;
             string model = (SystemInfo.deviceModel ?? "").ToLowerInvariant();
             if (model.Contains("quest 3s") || model.Contains("panther")) { c.IsQuest3S = true; c.HeadsetName = "Meta Quest 3S"; }
             else if (model.Contains("quest 3") || model.Contains("eureka")) { c.IsQuest3 = true; c.HeadsetName = "Meta Quest 3"; }
-            c.Location = UnityEngine.Input.location != null;
+            c.Location = UnityEngine.Input.location.isEnabledByUser;
             return c;
         }
     }
