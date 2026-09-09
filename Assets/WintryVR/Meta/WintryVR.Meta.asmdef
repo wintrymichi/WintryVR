@@ -4,7 +4,7 @@
     "references": [
         "WintryVR.Runtime",
         "Oculus.VR",
-        "Meta.XR.MRUtilityKit"
+        "meta.xr.mrutilitykit"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

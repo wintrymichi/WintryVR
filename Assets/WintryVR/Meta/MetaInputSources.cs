@@ -24,7 +24,8 @@ namespace WintryVR.MetaPlatform
                 _lastFind = Time.time;
                 foreach (var h in Object.FindObjectsByType<OVRHand>(FindObjectsSortMode.None))
                 {
-                    if (h.HandType == OVRHand.Hand.HandLeft) _left = h; else if (h.HandType == OVRHand.Hand.HandRight) _right = h;
+                    var side = h.GetHand();
+                    if (side == OVRPlugin.Hand.HandLeft) _left = h; else if (side == OVRPlugin.Hand.HandRight) _right = h;
                 }
                 var cam = UnityEngine.Camera.main; if (cam != null) _head = cam.transform;
             }

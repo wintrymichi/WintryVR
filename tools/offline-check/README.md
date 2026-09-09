@@ -40,6 +40,14 @@ that file as a way to check WintryVR's own cross-references, never as a statemen
 
 ## What it cannot tell you
 
+- **Anything decided by `manifest.json` or an `.asmdef`.** The harness feeds every `.cs` file to one compiler
+  and supplies the Meta API itself, so a missing built-in module (`com.unity.modules.animation`,
+  `com.unity.modules.physics2d`) or a wrong assembly reference name (`Meta.XR.MRUtilityKit` instead of
+  `meta.xr.mrutilitykit`) builds green here and fails in Unity. Real-Unity errors of that kind surface inside
+  the *package*, not in `Assets/`, which is what makes them easy to misread. Both bugs shipped past a green
+  harness run once; see `docs/META_SDK_NOTES.md`.
+- Access modifiers on Meta's own members. `MetaStubs/` compiles into the same assembly as the project code, so
+  an `internal` member of the real SDK (e.g. `OVRHand.HandType`) is still reachable here.
 - Shader compilation, scene and prefab loading, serialised inspector references.
 - Anything about real Unity runtime behaviour: rendering, physics stepping, coroutine scheduling, frame timing.
 - Whether the Meta and MRUK calls match the SDK version you actually install.

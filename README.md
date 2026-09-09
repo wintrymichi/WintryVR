@@ -236,19 +236,39 @@ Tests: **Window → General → Test Runner → EditMode** (intents, memory, JSO
 
 ## Verification status
 
-The C# in this repository has been compiled and the EditMode tests executed outside Unity, against a
-hand-written stand-in for the Unity API that keeps Unity's real signatures. Four configurations build with
-zero errors and zero warnings: editor, Android player, the Meta platform assembly, and the test assembly.
-All 56 EditMode test cases pass while running the project's own logic.
+Verified two ways: in **Unity 6000.0.46f1 with Meta XR SDK 74** (the real editor, batch mode), and in a
+stand-in harness that compiles the same C# without Unity installed (`tools/offline-check`).
 
-| Verified offline | Still needs Unity or the headset |
+**In real Unity** — all four project assemblies compile with zero errors, `WintryVR.Meta` included, and the
+EditMode suite runs green:
+
+| | Result |
 |---|---|
-| C# compiles for editor, Android and Meta configurations | Shader compilation (`WintryGlass`, `WintryGlow`) |
-| 56/56 EditMode test cases pass | Scene and prefab loading, serialised references |
-| JSON, asmdef and Android manifest parse | Meta XR and MRUK API shapes for your SDK version |
-| Every asset has a unique `.meta` GUID | Player settings, XR loader and URP asset assignment |
+| `WintryVR.Runtime`, `WintryVR.Editor`, `WintryVR.Meta`, `WintryVR.Tests.EditMode` | compile, 0 errors |
+| EditMode tests | 56/56 pass |
+| Meta XR SDK + MRUK API surface | resolves against v74 |
 
-`ProjectSettings/` holds only the editor version, so Unity generates default settings on first open. Run
-**WintryVR → Setup → Configure Player Settings for Quest 3 & 3S**, then
-**WintryVR → Setup → Verify project setup** to see what is still missing, and
-**WintryVR → Setup → Enable XR loader for Android** to switch the loader on when XR Plug-in Management is installed.
+**Offline** (`cd tools/offline-check && dotnet build editor.csproj && dotnet build android.csproj && dotnet
+build meta.csproj && dotnet run --project tests.csproj`) — four configurations build with zero errors and zero
+warnings and the same 56 test cases pass, in seconds, on a machine with only the .NET SDK.
+
+| Verified | Still needs the headset |
+|---|---|
+| C# compiles for editor, Android and Meta configurations | Passthrough, hand tracking and anchors on-device |
+| 56/56 EditMode test cases pass | Camera frames through the Passthrough Camera API |
+| Meta XR / MRUK references resolve against SDK 74 | Voice thresholds, LOD distances, thermal budget |
+| Every asset has a unique `.meta` GUID | Shader appearance and frame timing under URP |
+
+### Setup steps that stay manual
+
+`ProjectSettings/` holds only the editor version, so Unity generates its defaults on first open. These steps
+finish the job, and the verifier reports what is still missing:
+
+1. **WintryVR → Setup → Configure Player Settings for Quest 3 & 3S** — Android, ARM64, IL2CPP, Vulkan, linear
+   colour, min SDK 32, ASTC.
+2. **WintryVR → Setup → Enable XR loader for Android** — needs `com.unity.xr.management` and
+   `com.unity.xr.oculus` to be installed.
+3. Create a URP asset and assign it in **Project Settings → Graphics**. Without one the UI still renders:
+   `WintryMaterials.FindShader` falls back from `WintryVR/Glass` and `WintryVR/Glow` to built-in unlit
+   shaders, so the app looks plainer rather than breaking.
+4. **WintryVR → Setup → Verify project setup** — re-run until it reports everything in place.

@@ -11,6 +11,7 @@ using UnityEngine.Events;
 public static class OVRPlugin
 {
     public enum SystemHeadset { None, Meta_Quest_3, Meta_Quest_3S, Oculus_Quest_2, Meta_Quest_Pro }
+    public enum Hand { None = -1, HandLeft = 0, HandRight = 1 }
     public static SystemHeadset GetSystemHeadsetType() { return default(SystemHeadset); }
     public static bool GetHandTrackingEnabled() { return false; }
     public static bool GetEyeTrackingEnabled() { return false; }
@@ -62,10 +63,13 @@ public class OVRPassthroughLayer : MonoBehaviour
 
 public class OVRHand : MonoBehaviour
 {
-    public enum Hand { None, HandLeft, HandRight }
+    public enum Hand { None = OVRPlugin.Hand.None, HandLeft = OVRPlugin.Hand.HandLeft, HandRight = OVRPlugin.Hand.HandRight }
     public enum HandFinger { Thumb, Index, Middle, Ring, Pinky }
     public enum TrackingConfidence { Low, High }
-    public Hand HandType { get; set; }
+    // internal in the real SDK from v70 on: MetaMRRigProvider writes it through reflection,
+    // and the public GetHand() is the only supported way to read the side back.
+    internal Hand HandType = Hand.None;
+    public OVRPlugin.Hand GetHand() { return (OVRPlugin.Hand)HandType; }
     public bool IsTracked { get { return false; } }
     public bool IsDataHighConfidence { get { return false; } }
     public bool IsPointerPoseValid { get { return false; } }
