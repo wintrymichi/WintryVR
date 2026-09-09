@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <OutputType>Exe</OutputType>
+    <StartupObject>WintryCheck.Program</StartupObject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>WintryCheck.Tests</AssemblyName>
+    <RootNamespace>WintryCheck</RootNamespace>
+    <DefineConstants>UNITY_EDITOR;UNITY_STANDALONE_WIN;UNITY_64;UNITY_2020_1_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_6000_0_OR_NEWER;WINTRY_URP;UNITY_INCLUDE_TESTS</DefineConstants>
+    <NoWarn>1591;8981</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <BaseIntermediateOutputPath>obj\Tests\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\Tests\</BaseOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs\**\*.cs" />
+    <Compile Include="Runner\**\*.cs" />
+    <Compile Include="..\..\Assets\**\*.cs" />
+  </ItemGroup>
+</Project>

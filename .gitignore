@@ -36,3 +36,8 @@ sysinfo.txt
 .DS_Store
 # Generated asset cache (runtime + editor pipeline output)
 /WintryAssetCache/
+
+# Offline verification harness (tools/offline-check) — keep its project files, drop build output
+!tools/offline-check/*.csproj
+tools/offline-check/bin/
+tools/offline-check/obj/
