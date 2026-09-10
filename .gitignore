@@ -48,3 +48,6 @@ tools/offline-check/obj/
 
 # Unity Hub module install transcript
 /android-module-install.log*
+
+# Local build output
+/dist/
