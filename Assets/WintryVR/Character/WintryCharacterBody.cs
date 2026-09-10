@@ -34,8 +34,8 @@ namespace WintryVR.Character
 
             _bodyMat = WintryMaterials.Body(look.PrimaryColor, look.Metallic, look.Smoothness, look.EmissionColor, look.EmissionStrength * 0.35f);
             _visorMat = WintryMaterials.Body(look.SecondaryColor, 0.6f, 0.95f, look.EmissionColor, 0.15f);
-            _eyeMat = WintryMaterials.Glow(look.EyeColor, look.EyeColor, 1.6f);
-            _mouthMat = WintryMaterials.Glow(look.EmissionColor, look.EmissionColor, 1.2f);
+            _eyeMat = WintryMaterials.Glow(look.EyeColor, look.EyeColor, CoreIdentity.EyeEmission, 1f, 2f, 0.9f);
+            _mouthMat = WintryMaterials.Glow(look.EmissionColor, look.EmissionColor, CoreIdentity.MouthEmission, 1f, 2f, 0.85f);
             _ringMat = WintryMaterials.Glow(look.EmissionColor, look.EmissionColor, look.EmissionStrength, 0.85f);
             ApplyTextures(textures);
 
@@ -69,24 +69,48 @@ namespace WintryVR.Character
             Head = headGo.transform;
             CollectRenderers(headMesh);
 
+            // The face sits on an ellipsoid, so everything on it has to be placed against that surface rather
+            // than at a flat depth. Laid out by hand the whole face ended up inside the skull: the visor's front
+            // reached 0.86 of the head radius against a surface at 0.95, the eyes showed a sliver of one cap and
+            // the mouth disappeared entirely, which left Wintry a blank blue ball. These place each feature
+            // against the measured surface instead.
+            float headRz = headR * 0.95f;                       // headMesh is squashed to 0.95 in Z
+            float visorR = headR * 0.62f;
+            var visorScale = new Vector3(1.05f, 0.78f, 0.55f);
+            float visorY = -headR * 0.05f;
+            float visorFront = headRz * 1.06f;                  // how far the plate stands proud of the skull
+            float visorZ = visorFront - visorR * visorScale.z;   // centre that puts its front exactly there
+
+            // z of the visor's outer surface above a point on the face
+            System.Func<float, float, float> visorSurfaceZ = (x, y) =>
+            {
+                float ax = x / (visorR * visorScale.x);
+                float ay = (y - visorY) / (visorR * visorScale.y);
+                float t = 1f - ax * ax - ay * ay;
+                return t <= 0f ? visorZ : visorZ + visorR * visorScale.z * Mathf.Sqrt(t);
+            };
+
             // visor plate: a flattened sphere segment in front of the face
             var visor = new GameObject("Visor");
             visor.transform.SetParent(headGo.transform, false);
-            visor.transform.localPosition = new Vector3(0f, -headR * 0.05f, headR * 0.52f);
-            visor.transform.localScale = new Vector3(1.05f, 0.78f, 0.55f);
-            CharacterLOD.Build(visor.transform, CharacterLOD.IcosphereLods(headR * 0.62f), _visorMat, "Visor");
+            visor.transform.localPosition = new Vector3(0f, visorY, visorZ);
+            visor.transform.localScale = visorScale;
+            CharacterLOD.Build(visor.transform, CharacterLOD.IcosphereLods(visorR), _visorMat, "Visor");
             CollectRenderers(visor);
 
-            // eyes
-            float eyeR = headR * 0.16f;
-            var leftEye = MakeEye("EyeL", headGo.transform, new Vector3(-headR * 0.22f, headR * 0.02f, headR * 0.86f), eyeR);
-            var rightEye = MakeEye("EyeR", headGo.transform, new Vector3(headR * 0.22f, headR * 0.02f, headR * 0.86f), eyeR);
+            // eyes: two lenses set into the visor, most of each sphere proud of it
+            float eyeR = headR * 0.17f;
+            float eyeX = headR * 0.25f, eyeY = headR * 0.03f;
+            float eyeZ = visorSurfaceZ(eyeX, eyeY) - eyeR * 0.4f;
+            var leftEye = MakeEye("EyeL", headGo.transform, new Vector3(-eyeX, eyeY, eyeZ), eyeR);
+            var rightEye = MakeEye("EyeR", headGo.transform, new Vector3(eyeX, eyeY, eyeZ), eyeR);
             // lids (thin visor-coloured caps that scale down with the eye when blinking – handled by scaling the eye itself)
 
             // brow ring: thin arc above the eyes
+            float browY = headR * 0.33f;
             var brow = new GameObject("Brow");
             brow.transform.SetParent(headGo.transform, false);
-            brow.transform.localPosition = new Vector3(0f, headR * 0.34f, headR * 0.8f);
+            brow.transform.localPosition = new Vector3(0f, browY, visorSurfaceZ(0f, browY) + headR * 0.01f);
             brow.AddComponent<MeshFilter>().sharedMesh = ProceduralMeshes.Ring(headR * 0.42f, headR * 0.46f, 24);
             var browMr = brow.AddComponent<MeshRenderer>(); browMr.sharedMaterial = _mouthMat; browMr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             brow.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
@@ -94,9 +118,10 @@ namespace WintryVR.Character
             _renderers.Add(browMr);
 
             // mouth slit
+            float mouthY = -headR * 0.3f;
             var mouth = new GameObject("Mouth");
             mouth.transform.SetParent(headGo.transform, false);
-            mouth.transform.localPosition = new Vector3(0f, -headR * 0.3f, headR * 0.9f);
+            mouth.transform.localPosition = new Vector3(0f, mouthY, visorSurfaceZ(0f, mouthY) + headR * 0.01f);
             mouth.AddComponent<MeshFilter>().sharedMesh = ProceduralMeshes.Quad(1f, 1f);
             var mouthMr = mouth.AddComponent<MeshRenderer>(); mouthMr.sharedMaterial = _mouthMat; mouthMr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             mouth.transform.localScale = new Vector3(headR * 0.28f, headR * 0.03f, 1f);
@@ -221,8 +246,8 @@ namespace WintryVR.Character
             if (_bodyMat.HasProperty("_Smoothness")) _bodyMat.SetFloat("_Smoothness", look.Smoothness);
             WintryMaterials.SetEmission(_bodyMat, look.EmissionColor * look.EmissionStrength * 0.35f);
             WintryMaterials.SetColor(_visorMat, look.SecondaryColor);
-            WintryMaterials.SetColor(_eyeMat, look.EyeColor); WintryMaterials.SetEmission(_eyeMat, look.EyeColor * 1.6f);
-            WintryMaterials.SetColor(_mouthMat, look.EmissionColor); WintryMaterials.SetEmission(_mouthMat, look.EmissionColor * 1.2f);
+            WintryMaterials.SetColor(_eyeMat, look.EyeColor); WintryMaterials.SetEmission(_eyeMat, look.EyeColor * CoreIdentity.EyeEmission);
+            WintryMaterials.SetColor(_mouthMat, look.EmissionColor); WintryMaterials.SetEmission(_mouthMat, look.EmissionColor * CoreIdentity.MouthEmission);
             WintryMaterials.SetColor(_ringMat, look.EmissionColor); WintryMaterials.SetEmission(_ringMat, look.EmissionColor * look.EmissionStrength);
             if (Animator != null) Animator.Look = look;
             if (Face != null) Face.EyeColor = look.EyeColor;

@@ -48,13 +48,15 @@ namespace WintryVR.Core
                 && (shaderName.StartsWith("WintryVR/") || shaderName.StartsWith("Universal Render Pipeline/"));
         }
 
-        public static Material Glow(Color color, Color emission, float strength = 1.5f, float alpha = 1f, float fresnel = 2f)
+        public static Material Glow(Color color, Color emission, float strength = 1.5f, float alpha = 1f, float fresnel = 2f, float coreGlow = 0.35f)
         {
             var shader = FindShader("WintryVR/Glow", "Universal Render Pipeline/Unlit", "Unlit/Color");
             var m = new Material(shader) { name = "WintryGlow" };
             Set(m, "_Color", color); Set(m, "_BaseColor", color);
+            // intensity is folded into the colour, which is the convention every SetEmission caller follows;
+            // WintryVR/Glow therefore uses _EmissionColor as-is rather than scaling it again
             Set(m, "_EmissionColor", emission * strength);
-            SetF(m, "_EmissionStrength", strength); SetF(m, "_Fresnel", fresnel); SetF(m, "_Alpha", alpha);
+            SetF(m, "_Fresnel", fresnel); SetF(m, "_Alpha", alpha); SetF(m, "_CoreGlow", coreGlow);
             if (alpha < 0.999f) MakeTransparent(m);
             return m;
         }

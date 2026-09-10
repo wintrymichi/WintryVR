@@ -34,6 +34,8 @@ namespace WintryVR.UI
         private bool _closing;
         private Color _tint = new Color(0.08f, 0.12f, 0.2f);
         private bool _contrastApplied;
+        private string _bodyRaw = "";
+        private bool _needsBodyFit;
 
         public static GlassPanel Create(string name, float width, float height, Transform head, Color? tint = null)
         {
@@ -92,9 +94,61 @@ namespace WintryVR.UI
         public void SetTitle(string text) { _title.text = text ?? ""; }
         public void SetBody(string text)
         {
+            _bodyRaw = text ?? "";
             // wrap against the rendered glyph width: characterSize alone no longer describes it
             float glyphWidth = _body.characterSize * _body.fontSize * 5.2f / 48f;
-            _body.text = Wrap(text ?? "", Mathf.Max(12, (int)((Width - 0.04f) / glyphWidth)));
+            _body.text = Wrap(_bodyRaw, Mathf.Max(12, (int)((Width - 0.04f) / glyphWidth)));
+            _needsBodyFit = true;
+        }
+
+        /// <summary>
+        /// Drops the lines that do not fit between the title and the button row, ending with an ellipsis.
+        /// </summary>
+        /// <remarks>
+        /// Wrapping only controls line length; nothing stopped a long answer from running off the bottom of the
+        /// plate and printing over the buttons. The line height is measured from the text that is actually on
+        /// screen rather than derived from font constants, so it stays right whatever the accessibility text
+        /// size is. It waits for the open animation to settle, because dividing by a scale that is still near
+        /// zero would make every line look infinitely tall.
+        /// </remarks>
+        private void FitBody()
+        {
+            if (_body == null) { _needsBodyFit = false; return; }
+            if (_fade < 0.99f) return;
+            string shown = _body.text;
+            if (string.IsNullOrEmpty(shown)) { _needsBodyFit = false; return; }
+            var r = _body.GetComponent<Renderer>();
+            if (r == null) { _needsBodyFit = false; return; }
+
+            float lossy = Mathf.Abs(transform.lossyScale.y);
+            if (lossy < 1e-5f) return;
+            float textHeight = r.bounds.size.y / lossy;
+            if (textHeight <= 0f) return;                    // mesh for this string not built yet
+
+            var lines = shown.Split('\n');
+            float lineHeight = textHeight / Mathf.Max(1, lines.Length);
+            if (lineHeight <= 0f) { _needsBodyFit = false; return; }
+
+            float bottomInset = _buttons.Count > 0 ? 0.05f : 0.022f;
+            float available = Height - 0.05f - bottomInset;
+            int maxLines = Mathf.Max(1, Mathf.FloorToInt(available / lineHeight));
+            _needsBodyFit = false;
+            if (lines.Length <= maxLines) return;
+
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < maxLines; i++)
+            {
+                if (i > 0) sb.Append('\n');
+                sb.Append(i == maxLines - 1 ? Ellipsise(lines[i]) : lines[i]);
+            }
+            _body.text = sb.ToString();
+        }
+
+        private static string Ellipsise(string line)
+        {
+            line = (line ?? "").TrimEnd();
+            if (line.Length == 0) return "…";
+            return (line.Length > 3 ? line.Substring(0, line.Length - 1).TrimEnd() : line) + "…";
         }
         public void SetBodyColor(Color c) { _body.color = c; }
 
@@ -142,8 +196,14 @@ namespace WintryVR.UI
                     if (to.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(to.normalized, Vector3.up), 1f - Mathf.Exp(-8f * Time.deltaTime));
                 }
             }
+            if (_needsBodyFit) FitBody();
             float textScale = WintrySettings.Current.Accessibility.TextSize;
-            if (_body != null && Mathf.Abs(_body.transform.localScale.x - textScale) > 0.01f) { _body.transform.localScale = Vector3.one * textScale; _title.transform.localScale = Vector3.one * textScale; }
+            if (_body != null && Mathf.Abs(_body.transform.localScale.x - textScale) > 0.01f)
+            {
+                _body.transform.localScale = Vector3.one * textScale;
+                _title.transform.localScale = Vector3.one * textScale;
+                SetBody(_bodyRaw);   // a different text size fits a different number of lines
+            }
             // High contrast swaps the translucent tint for a near-opaque plate. It has to be applied on the
             // way back out too, otherwise turning the setting off leaves the panel permanently blacked out.
             bool contrast = WintrySettings.Current.Accessibility.HighContrast;

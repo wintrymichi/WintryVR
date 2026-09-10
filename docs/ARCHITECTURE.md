@@ -100,6 +100,21 @@ Maps are bound by `WintryCharacterBody.AssignMaps`, which writes both the URP Li
 and tiles the visor denser than the body so the pattern keeps its own scale on a much smaller surface. Sets are
 released on look change and on destroy — six textures per look leak quickly otherwise.
 
+The noise presets are periodic in `u` (`TileFbm`, `TileRidged`): splitting the uv seam stops the texture
+smearing across the wrap meridian, but Perlin has no period, so without this the pattern still fails to meet
+itself and leaves a visible line down the model.
+
+The face is placed against the head surface rather than at fixed depths. `visorSurfaceZ` evaluates the visor
+ellipsoid so the lenses, brow and mouth sit proud of it; laid out by hand every one of them ended up inside the
+skull and Wintry rendered as a blank ball.
+
+Without HDR or bloom, "glow" is only ever a value between 0 and 1, so `WintryVR/Glow` compresses its peak and
+rescales all three channels together — clipping per channel turned the signature blue white. `_CoreGlow`
+chooses where the emission sits: a shell like the Core orb wants it on the silhouette rim, a lens like an eye
+has to be brightest looking straight at it.
+
+`tools/preview` renders all of this to PNG from a headless Unity, which is how those problems were found.
+
 ## Spatial UI
 
 No Canvas and no EventSystem: panels, buttons and labels are meshes with trigger colliders, and

@@ -229,6 +229,7 @@ LOD distances, performance budgets).
 * `docs/PRIVACY.md` — privacy model, permissions, data lifecycle
 * `docs/PHASES.md` — phase-by-phase status
 * `docs/META_SDK_NOTES.md` — exact Meta APIs used and what to check per SDK version
+* `tools/preview/README.md` — rendering a look sheet without a headset
 
 Tests: **Window → General → Test Runner → EditMode** (intents, memory, JSON, voice, assistant parsing, textures/LODs).
 
@@ -251,6 +252,10 @@ EditMode suite runs green:
 **Offline** (`cd tools/offline-check && dotnet build editor.csproj && dotnet build android.csproj && dotnet
 build meta.csproj && dotnet run --project tests.csproj`) — four configurations build with zero errors and zero
 warnings and the same 58 test cases pass, in seconds, on a machine with only the .NET SDK.
+
+A look sheet renders the character, the eight variants, their generated maps and the spatial UI to PNG from a
+headless Unity (`tools/preview`) — useful when there is no headset to hand, and how several rendering defects
+were found that a green test run cannot see.
 
 | Verified | Still needs the headset |
 |---|---|

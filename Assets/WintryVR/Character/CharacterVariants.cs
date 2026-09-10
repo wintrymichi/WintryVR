@@ -11,6 +11,14 @@ namespace WintryVR.Character
     public static class CoreIdentity
     {
         public static readonly Color SignatureAccent = new Color(0.45f, 0.82f, 1f);
+        /// <summary>
+        /// How hard the eye lenses emit. Without HDR or bloom, "luminous" has to be earned by sitting clearly
+        /// brighter than the head around them; at the old 1.6 they came out barely above the face and read as
+        /// flat pale discs. Kept here because the eyes are part of the identity and three files were each
+        /// carrying their own copy of the number.
+        /// </summary>
+        public const float EyeEmission = 2.4f;
+        public const float MouthEmission = 1.6f;
         public const float MinEmission = 0.6f;
         public const float MaxEmission = 2.6f;
         public const float MaxSaturationShift = 0.35f;

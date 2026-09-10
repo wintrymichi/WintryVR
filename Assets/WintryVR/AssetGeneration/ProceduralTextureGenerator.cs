@@ -51,8 +51,8 @@ namespace WintryVR.AssetGeneration
                         case "frost":
                             {
                                 // crystalline branching: layered ridged noise
-                                float r1 = Ridged(u * scale + ox, v * scale + oy);
-                                float r2 = Ridged(u * scale * 2.3f + ox * 2f, v * scale * 2.3f + oy * 2f);
+                                float r1 = TileRidged(u, v, scale, ox, oy);
+                                float r2 = TileRidged(u, v, scale * 2.3f, ox * 2f, oy * 2f);
                                 p = Mathf.Clamp01(r1 * 0.7f + r2 * 0.3f);
                                 h = p;
                                 e = Mathf.Clamp01((p - 0.7f) / 0.3f);
@@ -75,17 +75,22 @@ namespace WintryVR.AssetGeneration
                             }
                         case "noise":
                             {
-                                float f = Fbm(u * scale + ox, v * scale + oy, 4);
+                                float f = TileFbm(u, v, scale, ox, oy, 4);
                                 p = f; h = f;
                                 e = Mathf.Clamp01((f - 0.62f) / 0.25f);
                                 break;
                             }
-                        default: // smooth: very soft large-scale variation with a faint seam line
+                        default: // smooth: very soft large-scale variation, no positional features
                             {
-                                float f = Fbm(u * scale * 0.5f + ox, v * scale * 0.5f + oy, 3);
-                                float seam = 1f - Mathf.Clamp01(Mathf.Abs(v - 0.5f) / 0.006f);
-                                p = f * 0.5f + 0.25f; h = f * 0.3f + seam * 0.4f;
-                                e = seam;
+                                // This preset used to draw a hard line at v = 0.5 as a moulding seam, and put
+                                // all of its emission on it. On a lathed body that read as a seam; wrapped on
+                                // the head, v = 0.5 is the equator, so it drew a glowing bar straight across
+                                // Wintry's eyes. Emission now follows the noise instead of a fixed latitude,
+                                // which reads the same on every part and lands on nothing in particular.
+                                float f = TileFbm(u, v, scale * 0.5f, ox, oy, 3);
+                                p = f * 0.5f + 0.25f;
+                                h = f * 0.35f;
+                                e = Mathf.Clamp01((f - 0.66f) / 0.26f) * 0.6f;
                                 break;
                             }
                     }
@@ -128,6 +133,29 @@ namespace WintryVR.AssetGeneration
                 }
             }
             return ao;
+        }
+
+        /// <summary>
+        /// FBM that meets itself at u = 1, by crossfading into a copy shifted one full period and weighting the
+        /// blend by u itself.
+        /// </summary>
+        /// <remarks>
+        /// Perlin noise has no period, so on a sphere the pattern simply stopped matching where u wraps and left
+        /// a visible line down the model. Splitting the uv seam fixed the smear across that boundary; this fixes
+        /// the content across it. Costs two samples instead of one, paid once when a look is generated.
+        /// </remarks>
+        private static float TileFbm(float u01, float v, float scale, float ox, float oy, int octaves)
+        {
+            float a = Fbm(u01 * scale + ox, v * scale + oy, octaves);
+            float b = Fbm((u01 - 1f) * scale + ox, v * scale + oy, octaves);
+            return Mathf.Lerp(a, b, Mathf.SmoothStep(0f, 1f, u01));
+        }
+
+        private static float TileRidged(float u01, float v, float scale, float ox, float oy)
+        {
+            float a = Ridged(u01 * scale + ox, v * scale + oy);
+            float b = Ridged((u01 - 1f) * scale + ox, v * scale + oy);
+            return Mathf.Lerp(a, b, Mathf.SmoothStep(0f, 1f, u01));
         }
 
         private static float Fbm(float x, float y, int octaves)

@@ -64,7 +64,7 @@ namespace WintryVR.Character
                 if (!_browInit) { _browBase = Brow.localPosition; _browInit = true; }
                 Brow.localPosition = _browBase + Vector3.up * _browY;
             }
-            if (EyeMaterial != null) WintryMaterials.SetEmission(EyeMaterial, EyeColor * (1.6f * _bright));
+            if (EyeMaterial != null) WintryMaterials.SetEmission(EyeMaterial, EyeColor * (CoreIdentity.EyeEmission * _bright));
         }
 
         private void Apply(Transform eye, Transform lidT, float side, float lid)
