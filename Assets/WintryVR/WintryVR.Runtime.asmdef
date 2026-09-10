@@ -1,7 +1,9 @@
 {
     "name": "WintryVR.Runtime",
     "rootNamespace": "WintryVR",
-    "references": [],
+    "references": [
+        "Unity.TextMeshPro"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -14,6 +16,11 @@
             "name": "com.unity.render-pipelines.universal",
             "expression": "",
             "define": "WINTRY_URP"
+        },
+        {
+            "name": "com.unity.ugui",
+            "expression": "",
+            "define": "WINTRY_TMP"
         }
     ],
     "noEngineReferences": false

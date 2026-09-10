@@ -48,6 +48,7 @@ namespace UnityEditor
 
     public static class AssetDatabase
     {
+        public static void ImportPackage(string packagePath, bool interactive) { }
         public static void Refresh() { }
         public static void SaveAssets() { }
         public static void CreateAsset(UnityEngine.Object asset, string path) { }
@@ -348,12 +349,30 @@ namespace UnityEditor
         public static bool SwitchActiveBuildTarget(BuildTargetGroup targetGroup, BuildTarget target) { return false; }
     }
 
+    public struct BuildPlayerOptions
+    {
+        public string[] scenes { get; set; }
+        public string locationPathName { get; set; }
+        public string assetBundleManifestPath { get; set; }
+        public BuildTargetGroup targetGroup { get; set; }
+        public BuildTarget target { get; set; }
+        public BuildOptions options { get; set; }
+        public string[] extraScriptingDefines { get; set; }
+    }
+
     public static class BuildPipeline
     {
         public static object BuildPlayer(string[] levels, string locationPathName, BuildTarget target, BuildOptions options) { return null; }
+        public static UnityEditor.Build.Reporting.BuildReport BuildPlayer(BuildPlayerOptions options) { return null; }
     }
 
-    [Flags] public enum BuildOptions { None = 0, Development = 1, AutoRunPlayer = 4, ConnectWithProfiler = 8 }
+    [Flags]
+    public enum BuildOptions
+    {
+        None = 0, Development = 1, AutoRunPlayer = 4, ShowBuiltPlayer = 8, BuildAdditionalStreamedScenes = 16,
+        AcceptExternalModificationsToPlayer = 32, ConnectWithProfiler = 256, AllowDebugging = 512,
+        SymlinkSources = 1024, UncompressedAssetBundle = 8192, ConnectToHost = 4096, CompressWithLz4 = 262144
+    }
 
     public static class AssetImporter
     {

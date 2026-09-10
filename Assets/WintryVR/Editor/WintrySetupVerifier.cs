@@ -169,7 +169,14 @@ namespace WintryVR.EditorTools
             var assign = store.GetMethod("AssignLoader", BindingFlags.Public | BindingFlags.Static);
             if (assign == null) { message = "XRPackageMetadataStore.AssignLoader not found"; return false; }
 
-            foreach (var loaderName in new[] { OpenXrLoader, OculusLoader })
+            // Oculus first on Android. The OpenXR loader also drives a Quest, but only once the Meta XR feature
+            // group is ticked in the OpenXR settings, and a headless build has no way to tick it — so picking
+            // OpenXR here produced an APK with a loader that initialises into nothing on the headset. The
+            // Oculus provider needs no such companion setting and is what com.unity.xr.oculus exists for.
+            var preferred = EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android
+                ? new[] { OculusLoader, OpenXrLoader }
+                : new[] { OpenXrLoader, OculusLoader };
+            foreach (var loaderName in preferred)
             {
                 if (FindType(loaderName) == null) continue;
                 try
@@ -214,8 +221,45 @@ namespace WintryVR.EditorTools
 
             if (container == null)
             {
-                problem = "no XR settings object for Android yet; open Project Settings → XR Plug-in Management once";
-                return false;
+                // The settings asset is normally created as a side effect of opening the XR Plug-in Management
+                // page, which a batch build never does — so a headless build would find no loader and produce
+                // an APK that runs flat on the headset. GetOrCreate is what that page itself calls.
+                var getOrCreate = perTarget.GetMethod("GetOrCreate",
+                    BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+                if (getOrCreate == null)
+                {
+                    problem = "no XR settings object for Android yet; open Project Settings → XR Plug-in Management once";
+                    return false;
+                }
+                try { container = getOrCreate.Invoke(null, null); }
+                catch (Exception ex) { problem = "could not create the XR settings asset: " + ex.Message; return false; }
+                if (container == null) { problem = "XR Plug-in Management would not create its settings asset"; return false; }
+            }
+
+            // container is the per-build-target asset; the caller wants the Android entry, which needs a
+            // manager object of its own before a loader can be assigned to it
+            var hasManager = container.GetType().GetMethod("HasManagerSettingsForBuildTarget");
+            var createManager = container.GetType().GetMethod("CreateDefaultManagerSettingsForBuildTarget");
+            var forTarget = container.GetType().GetMethod("SettingsForBuildTarget");
+            if (hasManager != null && createManager != null)
+            {
+                try
+                {
+                    var has = hasManager.Invoke(container, new object[] { BuildTargetGroup.Android });
+                    if (has is bool && !(bool)has)
+                        createManager.Invoke(container, new object[] { BuildTargetGroup.Android });
+                }
+                catch (Exception ex) { problem = "could not create the Android XR manager: " + ex.Message; return false; }
+            }
+
+            if (forTarget != null)
+            {
+                try
+                {
+                    var android = forTarget.Invoke(container, new object[] { BuildTargetGroup.Android });
+                    if (android != null) container = android;
+                }
+                catch { /* fall through with the container we have */ }
             }
 
             settings = container;

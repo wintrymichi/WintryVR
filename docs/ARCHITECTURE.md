@@ -123,21 +123,44 @@ That keeps the UI in world space where it belongs and keeps it batchable.
 
 Three things carry most of the perceived quality:
 
-* **Glyph raster size.** A dynamic font is rasterised at `fontSize` pixels and then scaled to metres by
-  `characterSize`; the two multiply, so world size depends on the product while sharpness depends on
-  `fontSize` alone. Everything goes through `WorldLabel.Configure`, which rasters at
-  `WorldLabel.RasterFontSize` (160 px) and divides `characterSize` by the same factor — identical layout,
-  roughly three times the texel density, no more shimmering as the head moves.
+* **Type.** All world text goes through `WintryText`, which draws Inter through TextMeshPro's signed-distance
+  field. A bitmap atlas magnified to reading distance crawls along the glyph edges as the head moves; an SDF
+  glyph is stored as distances and stays sharp at any size and angle. Inter is an OFL-licensed UI face with a
+  tall x-height and open apertures, which is what survives low angular resolution — Apple's SF Pro cannot be
+  redistributed, so it was never an option. Roles carry their own optical treatment: titles take Inter Display
+  tightened, small UI text takes Inter Medium opened up. The SDF atlas is built from the TTF at runtime, so
+  only the font ships. If TextMeshPro or its settings asset is missing the class falls back to `TextMesh`
+  instead of throwing — a font problem should cost sharpness, never the interface.
 * **The pointer has a visible end.** `UIPointerCursor` draws a small ring where the ray lands plus a faint beam
   back to the hand. Without it, aiming is guesswork and a near-miss is indistinguishable from the app ignoring
   you. Both parts fade out when there is nothing to point at.
-* **Edges measured in metres.** `WintryVR/Glass` evaluates a rounded-rectangle signed distance in the plate's
-  real dimensions, passed in by `WintryMaterials.SetPanelShape`. Measured in uv instead, the highlight band
-  came out thicker on a panel's short axis and squared off across the rounded corners.
+* **Glass with a real edge.** `WintryVR/Glass` reconstructs the thickness a flat plate does not have, from a
+  signed distance to its own outline. That one number gives where the bevel is, which way it faces and how
+  steep it is; refraction, dispersion, the specular streak and the rim all follow from it. The outline is a
+  p-norm squircle rather than a circular round-rect, because a circular corner meets the straight edge with
+  curvature jumping from zero to 1/r and the eye reads that as a rectangle with its ends filed off.
+  `ProceduralMeshes.RoundedRect` traces the same curve, since a circular mesh would crop the shader's corners.
+  Sizes reach the shader in metres through `WintryMaterials.SetPanelShape`; measured in uv, the band came out
+  thicker on a panel's short axis.
 
-Text meshes do not rebuild until the end of the frame their string was assigned in, so anything that measures
-text — the button's label fit, the label's backing plate — defers to `LateUpdate` and retries while the bounds
-are still degenerate, rather than measuring the previous string.
+  Refraction samples `_CameraOpaqueTexture`, so it only runs when the pipeline actually resolves one —
+  `WintryMaterials.SceneColorAvailable` checks the URP asset rather than assuming. On a headset that texture
+  holds virtual content only: passthrough is composited underneath by the runtime and never reaches the colour
+  buffer, so the glass bends other panels and Wintry, while the room comes through by ordinary alpha.
+
+  Glass sits at render queue 2960, below the transparent default. Plate and label are millimetres apart, so
+  per-object distance sorting decided their order arbitrarily, and whenever the plate won it composited its
+  refracted background over its own title.
+
+SDF text measures on demand, so layout that depends on text size is exact. The fallback path does not: a
+`TextMesh` rebuilds at the end of the frame its string was assigned in, so anything measuring it — the button's
+label fit, a label's backing plate — defers to `LateUpdate` and retries while the bounds are still degenerate.
+`WintryText.Measured` reports which case you are in.
+
+One unit trap is worth knowing: TextMeshPro sizes world text in points, ten to the transform unit, so an em is
+`fontSize / 10` metres — but its RectTransform and its reported bounds are already in transform units. Scaling
+those by ten as well makes every wrap box ten metres wide, so text never wraps, and every measurement comes
+back a fifth of its real size.
 
 ## Extension points (future features)
 

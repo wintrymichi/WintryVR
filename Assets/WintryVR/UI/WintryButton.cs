@@ -26,7 +26,7 @@ namespace WintryVR.UI
         private bool _hovered;
         private float _press;          // 1 right after a click, decaying to 0
         private float _scale = 1f;     // smoothed, so hover and press never fight over localScale
-        private TextMesh _text;
+        private WintryText _text;
         private float _width, _height;
         private bool _needsFit;
 
@@ -42,10 +42,11 @@ namespace WintryVR.UI
 
             var plate = new GameObject("Plate");
             plate.transform.SetParent(go.transform, false);
-            plate.AddComponent<MeshFilter>().sharedMesh = ProceduralMeshes.RoundedRect(width, height, Mathf.Min(width, height) * 0.35f, 5);
+            float corner = Mathf.Min(width, height) * 0.46f;   // very nearly a capsule, like a system control
+            plate.AddComponent<MeshFilter>().sharedMesh = ProceduralMeshes.RoundedRect(width, height, corner, 10);
             var mr = plate.AddComponent<MeshRenderer>();
             btn._mat = WintryMaterials.Glass(btn._base, 0.55f, 1.2f);
-            WintryMaterials.SetPanelShape(btn._mat, width, height, Mathf.Min(width, height) * 0.35f, 0.004f);
+            WintryMaterials.SetPanelShape(btn._mat, width, height, corner, 0.0011f);
             mr.sharedMaterial = btn._mat;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
@@ -53,41 +54,36 @@ namespace WintryVR.UI
             col.size = new Vector3(width, height, 0.01f);
             col.isTrigger = true;
 
-            var tgo = new GameObject("Label");
-            tgo.transform.SetParent(go.transform, false);
-            tgo.transform.localPosition = new Vector3(0f, 0f, -0.002f);
-            var tm = tgo.AddComponent<TextMesh>();
-            // height * 0.045 characterSize at the old 40 px raster is the size this label has always had
-            WorldLabel.Configure(tm, height * 0.045f * 40f, TextAnchor.MiddleCenter, TextAlignment.Center, Color.white);
-            tm.text = label;
-            btn._text = tm;
+            btn._text = WintryText.Create("Label", go.transform, new Vector3(0f, 0f, -0.003f),
+                                          height * 0.42f, TextRole.Ui, TextAnchor.MiddleCenter,
+                                          new Color(0.96f, 0.98f, 1f));
+            // deliberately unbounded: a control label should shrink to fit its plate, not be cut to
+            // "Transl..." — the word is the whole affordance
+            btn._text.SetText(label);
             btn._needsFit = true;
             return btn;
         }
 
         /// <summary>
-        /// Shrinks the label until it fits the plate. A TextMesh does not rebuild its mesh until the end of the
-        /// frame it was written in, so its renderer bounds are still the previous string's at this point:
-        /// the fit has to wait for bounds that describe the text actually on screen.
+        /// Shrinks the label if it still overruns the plate after wrapping. SDF text measures immediately, but
+        /// the fallback path only knows its size once the mesh has been rebuilt, so this retries until it does.
         /// </summary>
         private void FitText()
         {
-            if (_text == null) return;
-            var r = _text.GetComponent<Renderer>();
-            if (r == null) return;
-            float textWidth = r.bounds.size.x;
-            if (textWidth <= 0f) return;                       // mesh not built yet, try again next frame
+            if (_text == null || !_text.Measured) return;
             _needsFit = false;
-            float lossy = Mathf.Abs(transform.lossyScale.x) > 1e-5f ? Mathf.Abs(transform.lossyScale.x) : 1f;
-            float allowed = _width * 0.9f * lossy;
-            if (textWidth > allowed) _text.characterSize *= allowed / textWidth;
+            var size = _text.RenderedSize;
+            if (size.x <= 0f) return;
+            float scale = Mathf.Min(_width * 0.86f / size.x, 1f);
+            if (size.y > 0f) scale = Mathf.Min(scale, _height * 0.62f / size.y);
+            if (scale < 0.999f) _text.SetSize(_height * 0.42f * scale);
         }
 
         public void SetLabel(string label)
         {
             Label = label;
             if (_text == null) return;
-            _text.text = label;
+            _text.SetText(label);
             _needsFit = true;
         }
 

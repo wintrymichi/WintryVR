@@ -45,3 +45,6 @@ tools/offline-check/obj/
 # Look sheets rendered by tools/preview
 /preview-renders/
 /Captures/
+
+# Unity Hub module install transcript
+/android-module-install.log*

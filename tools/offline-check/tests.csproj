@@ -8,7 +8,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AssemblyName>WintryCheck.Tests</AssemblyName>
     <RootNamespace>WintryCheck</RootNamespace>
-    <DefineConstants>UNITY_EDITOR;UNITY_STANDALONE_WIN;UNITY_64;UNITY_2020_1_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_6000_0_OR_NEWER;WINTRY_URP;UNITY_INCLUDE_TESTS</DefineConstants>
+    <DefineConstants>UNITY_EDITOR;UNITY_STANDALONE_WIN;UNITY_64;UNITY_2020_1_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_6000_0_OR_NEWER;WINTRY_URP;WINTRY_TMP;UNITY_INCLUDE_TESTS</DefineConstants>
     <NoWarn>1591;8981</NoWarn>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <BaseIntermediateOutputPath>obj\Tests\</BaseIntermediateOutputPath>

@@ -9,7 +9,7 @@ namespace WintryVR.UI
     /// </summary>
     public class WorldLabel : MonoBehaviour
     {
-        public TextMesh Text { get; private set; }
+        public WintryText Text { get; private set; }
         private Transform _backing;
         private Transform _head;
         private bool _needsRefit;
@@ -72,13 +72,10 @@ namespace WintryVR.UI
             var label = go.AddComponent<WorldLabel>();
             label._head = head;
 
-            var textGo = new GameObject("Text");
-            textGo.transform.SetParent(go.transform, false);
-            var tm = textGo.AddComponent<TextMesh>();
-            Configure(tm, sizeMeters * 0.04f * 48f, TextAnchor.MiddleCenter, TextAlignment.Center,
-                      color ?? new Color(0.95f, 0.98f, 1f));
-            tm.text = text;
-            label.Text = tm;
+            label.Text = WintryText.Create("Text", go.transform, Vector3.zero, sizeMeters * 0.09f,
+                                           TextRole.Ui, TextAnchor.MiddleCenter,
+                                           color ?? new Color(0.96f, 0.98f, 1f));
+            label.Text.SetText(text);
 
             var backing = GameObject.CreatePrimitive(PrimitiveType.Quad);
             Object.Destroy(backing.GetComponent<Collider>());
@@ -95,8 +92,8 @@ namespace WintryVR.UI
         public void SetText(string text)
         {
             if (Text == null) return;
-            Text.text = text;
-            _needsRefit = true;   // the mesh for this string does not exist until the end of the frame
+            Text.SetText(text);
+            _needsRefit = true;
         }
 
         /// <summary>
@@ -105,23 +102,21 @@ namespace WintryVR.UI
         /// previous string — on the first frame, an empty one. Refitting from LateUpdate measures what is
         /// actually on screen, and it retries while the bounds are still degenerate.
         /// </summary>
+        /// <summary>Sizes the backing plate to the text it is behind.</summary>
         private void Refit()
         {
             if (_backing == null || Text == null) return;
-            var r = Text.GetComponent<Renderer>();
-            if (r == null) return;
-            var size = r.bounds.size;
-            if (size.x <= 0f && !string.IsNullOrEmpty(Text.text)) return;   // not built yet
+            if (!Text.Measured) return;
+            var size = Text.RenderedSize;
+            bool empty = string.IsNullOrEmpty(Text.Text);
             _needsRefit = false;
-            float s = Mathf.Abs(transform.lossyScale.x) > 1e-5f ? Mathf.Abs(transform.lossyScale.x) : 1f;
-            bool empty = string.IsNullOrEmpty(Text.text);
             _backing.gameObject.SetActive(!empty);
             if (empty) return;
-            float w = size.x / s + 0.03f, h = size.y / s + 0.02f;
+            float w = size.x + 0.034f, h = size.y + 0.024f;
             _backing.localScale = new Vector3(w, h, 1f);
             // the plate is a unit quad stretched to fit, so the shader needs the stretched size to keep its
             // edge band an even thickness instead of squashing it along the wider axis
-            WintryMaterials.SetPanelShape(_backingMat, w, h, Mathf.Min(w, h) * 0.35f, Mathf.Min(w, h) * 0.12f);
+            WintryMaterials.SetPanelShape(_backingMat, w, h, Mathf.Min(w, h) * 0.42f, Mathf.Min(w, h) * 0.14f);
         }
 
         private void LateUpdate()

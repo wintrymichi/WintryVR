@@ -279,6 +279,7 @@ namespace UnityEngine
 
     public static class Application
     {
+        public static bool isBatchMode { get { return false; } }
         public static string dataPath { get { return ""; } }
         public static string persistentDataPath { get { return System.IO.Path.Combine(System.IO.Path.GetTempPath(), "WintryVRTest"); } }
         public static string streamingAssetsPath { get { return ""; } }

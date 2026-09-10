@@ -220,17 +220,36 @@ namespace WintryVR.Core
         }
 
         /// <summary>Rounded rectangle (XY plane) used for glass panels.</summary>
-        public static Mesh RoundedRect(float w, float h, float radius, int cornerSegments)
+        /// <summary>Corner continuity used across the UI. 2 is a plain circular arc; 4 is a squircle.</summary>
+        public const float SquircleExponent = 4f;
+
+        /// <summary>
+        /// A rounded rectangle whose corners follow a p-norm rather than a circular arc.
+        /// </summary>
+        /// <remarks>
+        /// A circular corner meets the straight edge with curvature jumping from zero to 1/r in one step, and the
+        /// eye reads that discontinuity as a rectangle with its ends filed off. A superellipse ramps the curvature
+        /// in, which is the corner Apple uses on hardware and in software and the reason their panels look
+        /// carved rather than clipped. <c>WintryVR/Glass</c> evaluates the same curve for its bevel, so the mesh
+        /// silhouette and the shader's outline have to agree — a circular mesh would crop the shader's corners.
+        /// </remarks>
+        public static Mesh RoundedRect(float w, float h, float radius, int cornerSegments, float corner = SquircleExponent)
         {
             var verts = new List<Vector3> { Vector3.zero };
             var uv = new List<Vector2> { new Vector2(0.5f, 0.5f) };
             radius = Mathf.Min(radius, Mathf.Min(w, h) * 0.5f);
+            cornerSegments = Mathf.Max(cornerSegments, 6);   // a squircle needs more samples than an arc
             Vector2[] centres = { new Vector2(w / 2 - radius, h / 2 - radius), new Vector2(-w / 2 + radius, h / 2 - radius), new Vector2(-w / 2 + radius, -h / 2 + radius), new Vector2(w / 2 - radius, -h / 2 + radius) };
             for (int c = 0; c < 4; c++)
                 for (int i = 0; i <= cornerSegments; i++)
                 {
                     float a = (c * 90f + i * 90f / cornerSegments) * Mathf.Deg2Rad;
-                    var p = centres[c] + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius;
+                    float cs = Mathf.Cos(a), sn = Mathf.Sin(a);
+                    // superellipse point: |x|^n + |y|^n = r^n, traced by raising the circle's components
+                    float e = 2f / Mathf.Max(2f, corner);
+                    var dir = new Vector2(Mathf.Sign(cs) * Mathf.Pow(Mathf.Abs(cs), e),
+                                          Mathf.Sign(sn) * Mathf.Pow(Mathf.Abs(sn), e));
+                    var p = centres[c] + dir * radius;
                     verts.Add(new Vector3(p.x, p.y, 0));
                     uv.Add(new Vector2(p.x / w + 0.5f, p.y / h + 0.5f));
                 }

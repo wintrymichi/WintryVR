@@ -78,7 +78,11 @@ namespace WintryVR.Character
             float visorR = headR * 0.62f;
             var visorScale = new Vector3(1.05f, 0.78f, 0.55f);
             float visorY = -headR * 0.05f;
-            float visorFront = headRz * 1.06f;                  // how far the plate stands proud of the skull
+            // How far the plate stands proud of the skull. Two spheres that meet almost tangentially cut each
+            // other along a ragged line, because a grazing intersection moves a long way for a small change in
+            // either surface; standing the visor further out makes the two meet closer to head-on and the
+            // silhouette comes out clean without spending more triangles on either.
+            float visorFront = headRz * 1.11f;
             float visorZ = visorFront - visorR * visorScale.z;   // centre that puts its front exactly there
 
             // z of the visor's outer surface above a point on the face

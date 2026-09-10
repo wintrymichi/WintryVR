@@ -265,17 +265,29 @@ were found that a green test run cannot see.
 | `WintryVR/Glass` and `WintryVR/Glow` compile clean | Frame timing and legibility at real reading distance |
 | Every asset has a unique `.meta` GUID | Shader appearance and frame timing under URP |
 
-### Setup steps that stay manual
+### Building
 
-`ProjectSettings/` holds only the editor version, so Unity generates its defaults on first open. These steps
-finish the job, and the verifier reports what is still missing:
+One command does the whole setup and produces an APK, so a fresh clone can be built without clicking through
+Project Settings:
 
-1. **WintryVR → Setup → Configure Player Settings for Quest 3 & 3S** — Android, ARM64, IL2CPP, Vulkan, linear
-   colour, min SDK 32, ASTC.
-2. **WintryVR → Setup → Enable XR loader for Android** — needs `com.unity.xr.management` and
-   `com.unity.xr.oculus` to be installed.
-3. Create a URP asset and assign it in **Project Settings → Graphics**. Wintry's glass and glow shaders are
-   URP-only, and `WintryMaterials.FindShader` checks whether a pipeline asset is actually assigned rather
-   than whether the package is installed — so without one it falls back to built-in unlit shaders and the app
-   looks plainer instead of rendering wrong. Assign the asset to get the intended look.
-4. **WintryVR → Setup → Verify project setup** — re-run until it reports everything in place.
+```bash
+"<Unity>/Unity.exe" -batchmode -quit -projectPath .   -executeMethod WintryVR.EditorTools.WintryBuild.BuildQuestApk   -logFile build.log -buildOutput Build/WintryVR.apk
+```
+
+It configures the player for Quest, creates and assigns a URP asset, imports the TextMeshPro essentials,
+creates the XR settings object and enables the Oculus loader for Android, adds the scene to the build
+settings, and builds. Each of those is also a menu item under **WintryVR → Setup**, and
+**WintryVR → Build → Build Quest APK** runs the same path from the editor.
+
+Two details it handles that cost an afternoon to find:
+
+* The XR settings object is normally created as a side effect of *opening* Project Settings → XR Plug-in
+  Management. A headless build never opens it, so without `GetOrCreate` the APK ships with no loader and runs
+  flat on the headset.
+* The OpenXR package registers its settings during a build and then aborts that same build with "OpenXR
+  Settings found in project but not yet loaded. Please build again." The build retries once for that reason.
+
+`ProjectSettings/` holds only the editor version, so Unity generates its defaults on first open and the setup
+steps above fill them in. Run **WintryVR → Setup → Verify project setup** to see what is still missing; it
+checks the build target, colour space, scripting backend, architecture, minimum SDK, graphics API, runtime
+config, scene list, render pipeline, shader compilation and XR loader.

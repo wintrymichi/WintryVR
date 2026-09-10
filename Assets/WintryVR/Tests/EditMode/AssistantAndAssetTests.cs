@@ -93,6 +93,38 @@ namespace WintryVR.Tests
         }
 
         [Test]
+        public void RoundedRectOutlineMatchesTheShaderSquircle()
+        {
+            // WintryVR/Glass evaluates a p-norm signed distance to decide where its bevel, refraction and rim
+            // go. The mesh has to trace that same curve: a circular outline is tighter than the squircle at the
+            // corners, so the geometry would crop exactly the part of the shader's shape that carries the
+            // bevel. This fails if either side changes its corner independently of the other.
+            const float w = 0.34f, h = 0.21f, r = 0.032f;
+            var mesh = ProceduralMeshes.RoundedRect(w, h, r, 12);
+            var verts = mesh.vertices;
+            var half = new Vector2(w * 0.5f, h * 0.5f);
+            float n = ProceduralMeshes.SquircleExponent;
+
+            int checked_ = 0;
+            for (int i = 1; i < verts.Length; i++)   // vertex 0 is the fan centre
+            {
+                float d = SquircleDistance(new Vector2(verts[i].x, verts[i].y), half, r, n);
+                Assert.Less(Mathf.Abs(d), 1e-4f, "vertex " + i + " sits " + d + " m off the squircle outline");
+                checked_++;
+            }
+            Assert.Greater(checked_, 40, "not enough outline vertices to be meaningful");
+        }
+
+        /// <summary>The same signed distance WintryVR/Glass computes, for the test to compare against.</summary>
+        private static float SquircleDistance(Vector2 p, Vector2 halfSize, float r, float n)
+        {
+            Vector2 q = new Vector2(Mathf.Abs(p.x), Mathf.Abs(p.y)) - (halfSize - Vector2.one * r);
+            Vector2 m = new Vector2(Mathf.Max(q.x, 0f), Mathf.Max(q.y, 0f));
+            float norm = Mathf.Pow(Mathf.Pow(m.x, n) + Mathf.Pow(m.y, n), 1f / n);
+            return norm + Mathf.Min(Mathf.Max(q.x, q.y), 0f) - r;
+        }
+
+        [Test]
         public void SphereUvsDoNotWrapAcrossTheSeam()
         {
             // A latitude/longitude sphere with shared vertices interpolates u the long way round inside every

@@ -80,10 +80,52 @@ namespace WintryVR.Core
             var c = tint; c.a = alpha;
             Set(m, "_Color", c); Set(m, "_BaseColor", c);
             SetF(m, "_Fresnel", fresnel); Set(m, "_EdgeColor", new Color(1f, 1f, 1f, 0.35f));
+            // Refraction needs something to refract. The pipeline only resolves _CameraOpaqueTexture when the
+            // URP asset asks for it, and sampling it otherwise reads black, so the bevel would go dark instead
+            // of glassy. Off unless the pipeline really provides it.
+            SetF(m, "_Refraction", SceneColorAvailable ? 0.022f : 0f);
             MakeTransparent(m);
-            m.renderQueue = 3000;
+            // Below the transparent default so a plate always draws before the text sitting on it. Both are
+            // transparent and were within a few millimetres of each other, so per-object distance sorting
+            // decided the order arbitrarily — and whenever the plate won, it composited its refracted
+            // background straight over its own title. Still above 2500, so the opaque texture it samples has
+            // already been resolved.
+            m.renderQueue = 2960;
             return m;
         }
+
+        private static int _sceneColor = -1;
+
+        /// <summary>
+        /// Whether the active URP asset resolves a camera opaque texture this frame.
+        /// </summary>
+        /// <remarks>
+        /// Reached by reflection so the project still builds with URP absent. On a headset this describes the
+        /// virtual scene only: passthrough is composited underneath by the runtime and never reaches the colour
+        /// buffer, so glass refracts other panels and Wintry, never the room. The room comes through by alpha.
+        /// </remarks>
+        public static bool SceneColorAvailable
+        {
+            get
+            {
+                if (_sceneColor >= 0) return _sceneColor == 1;
+                _sceneColor = 0;
+                var asset = GraphicsSettings.currentRenderPipeline ?? GraphicsSettings.defaultRenderPipeline;
+                if (asset != null)
+                {
+                    var prop = asset.GetType().GetProperty("supportsCameraOpaqueTexture");
+                    if (prop != null && prop.PropertyType == typeof(bool))
+                    {
+                        try { if ((bool)prop.GetValue(asset, null)) _sceneColor = 1; }
+                        catch { /* leave it off: a wrong guess here costs a black edge on every panel */ }
+                    }
+                }
+                return _sceneColor == 1;
+            }
+        }
+
+        /// <summary>Forgets the cached pipeline probe, for when the render pipeline is swapped at runtime.</summary>
+        public static void InvalidatePipelineProbe() { _sceneColor = -1; }
 
         public static Material Unlit(Color color, bool transparent = false)
         {
@@ -123,6 +165,10 @@ namespace WintryVR.Core
             if (m.HasProperty("_Size")) m.SetVector("_Size", new Vector4(Mathf.Max(1e-4f, width), Mathf.Max(1e-4f, height), 0f, 0f));
             SetF(m, "_Radius", radius);
             SetF(m, "_EdgeWidth", edgeWidth);
+            // the bevel is the lens: wide enough to read as thickness, never so wide it eats the flat middle
+            SetF(m, "_Bevel", Mathf.Clamp(radius * 0.85f, edgeWidth * 1.5f, Mathf.Min(width, height) * 0.3f));
+            // must match the mesh silhouette or the shader's outline is cropped by the geometry
+            SetF(m, "_Corner", ProceduralMeshes.SquircleExponent);
         }
 
         public static void SetColor(Material m, Color c) { Set(m, "_BaseColor", c); Set(m, "_Color", c); }
