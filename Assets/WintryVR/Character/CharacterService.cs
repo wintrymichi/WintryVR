@@ -39,13 +39,20 @@ namespace WintryVR.Character
         private bool _preferRight = true;
         private float _morph; // 0 = core, 1 = character
 
+        /// <summary>
+        /// Edge of the generated PBR maps. Wintry is looked at from roughly half a metre, so 256 showed its
+        /// texels on the head; 512 does not. Six maps at 512 RGBA32 with mips cost about 8 MB, which is
+        /// affordable on both Quest 3 and 3S, and they are generated once per look and cached.
+        /// </summary>
+        public const int TextureResolution = 512;
+
         public void Initialize(ISpatialService spatial, SpatialAudioService audio)
         {
             _spatial = spatial; _audio = audio;
             var settings = WintrySettings.Current;
             Variant = settings.CharacterVariant;
             CurrentLook = CharacterVariants.GetLook(Variant);
-            var textures = ProceduralTextureGenerator.Generate(CurrentLook, 256);
+            var textures = ProceduralTextureGenerator.Generate(CurrentLook, TextureResolution);
 
             Core = new GameObject("WintryCore").AddComponent<WintryCoreOrb>();
             Core.transform.SetParent(transform, false);
@@ -178,7 +185,7 @@ namespace WintryVR.Character
         public void ApplyCustomLook(WintryLookDefinition look)
         {
             CurrentLook = CoreIdentity.Constrain(look);
-            var textures = ProceduralTextureGenerator.Generate(CurrentLook, 256);
+            var textures = ProceduralTextureGenerator.Generate(CurrentLook, TextureResolution);
             Core.ApplyLook(CurrentLook);
             Body.ApplyLook(CurrentLook, textures);
             WintryLog.I("Character", "Applied look: " + CurrentLook.Name);

@@ -33,6 +33,7 @@ namespace WintryVR.UI
         private float _fade = 0f;
         private bool _closing;
         private Color _tint = new Color(0.08f, 0.12f, 0.2f);
+        private bool _contrastApplied;
 
         public static GlassPanel Create(string name, float width, float height, Transform head, Color? tint = null)
         {
@@ -53,6 +54,7 @@ namespace WintryVR.UI
             _plateMesh.sharedMesh = ProceduralMeshes.RoundedRect(width, height, 0.02f, 6);
             var mr = plate.AddComponent<MeshRenderer>();
             _plateMat = WintryMaterials.Glass(_tint, 0.62f, 1.4f);
+            WintryMaterials.SetPanelShape(_plateMat, width, height, 0.02f, 0.007f);
             mr.sharedMaterial = _plateMat;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _plate = plate.transform;
@@ -82,13 +84,18 @@ namespace WintryVR.UI
             go.transform.SetParent(transform, false);
             go.transform.localPosition = pos;
             var tm = go.AddComponent<TextMesh>();
-            tm.font = WorldLabel.DefaultFont; tm.fontSize = 48; tm.characterSize = size; tm.anchor = anchor; tm.alignment = TextAlignment.Left; tm.color = color; tm.lineSpacing = 1.05f;
-            var mr = go.GetComponent<MeshRenderer>(); if (mr != null && tm.font != null) mr.sharedMaterial = tm.font.material;
+            WorldLabel.Configure(tm, size * 48f, anchor, TextAlignment.Left, color);
+            tm.lineSpacing = 1.05f;
             return tm;
         }
 
         public void SetTitle(string text) { _title.text = text ?? ""; }
-        public void SetBody(string text) { _body.text = Wrap(text ?? "", Mathf.Max(12, (int)((Width - 0.04f) / (_body.characterSize * 5.2f)))); }
+        public void SetBody(string text)
+        {
+            // wrap against the rendered glyph width: characterSize alone no longer describes it
+            float glyphWidth = _body.characterSize * _body.fontSize * 5.2f / 48f;
+            _body.text = Wrap(text ?? "", Mathf.Max(12, (int)((Width - 0.04f) / glyphWidth)));
+        }
         public void SetBodyColor(Color c) { _body.color = c; }
 
         public WintryButton AddButton(string label, Action onClick, float width = 0.1f)
@@ -137,7 +144,17 @@ namespace WintryVR.UI
             }
             float textScale = WintrySettings.Current.Accessibility.TextSize;
             if (_body != null && Mathf.Abs(_body.transform.localScale.x - textScale) > 0.01f) { _body.transform.localScale = Vector3.one * textScale; _title.transform.localScale = Vector3.one * textScale; }
-            if (WintrySettings.Current.Accessibility.HighContrast) WintryMaterials.SetColor(_plateMat, new Color(0.02f, 0.03f, 0.05f, 0.92f));
+            // High contrast swaps the translucent tint for a near-opaque plate. It has to be applied on the
+            // way back out too, otherwise turning the setting off leaves the panel permanently blacked out.
+            bool contrast = WintrySettings.Current.Accessibility.HighContrast;
+            if (contrast != _contrastApplied)
+            {
+                _contrastApplied = contrast;
+                WintryMaterials.SetColor(_plateMat, contrast ? new Color(0.02f, 0.03f, 0.05f, 0.92f)
+                                                             : new Color(_tint.r, _tint.g, _tint.b, 0.62f));
+                _title.color = contrast ? Color.white : new Color(0.85f, 0.95f, 1f);
+                _body.color = contrast ? Color.white : new Color(0.95f, 0.97f, 1f);
+            }
         }
 
         public static string Wrap(string text, int maxChars)

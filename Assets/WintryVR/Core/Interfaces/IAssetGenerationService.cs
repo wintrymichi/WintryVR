@@ -15,6 +15,7 @@ namespace WintryVR.Core
         public Texture2D Metallic;
         public Texture2D Emission;
         public Texture2D Detail;
+        public Texture2D Occlusion;
         public int Resolution;
     }
 

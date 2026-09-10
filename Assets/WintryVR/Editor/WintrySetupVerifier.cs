@@ -70,6 +70,7 @@ namespace WintryVR.EditorTools
                     "Runtime config", "StreamingAssets/wintry.config.json (run Setup → Create wintry.config.json)"),
                 new Check(SceneIsInBuild(), "Main scene", ScenePath + " listed and enabled in Build Settings"),
                 RenderPipelineCheck(),
+                ShaderCheck(),
                 XrLoaderCheck()
             };
             return checks;
@@ -85,6 +86,35 @@ namespace WintryVR.EditorTools
         {
             var scenes = EditorBuildSettings.scenes;
             return scenes != null && scenes.Any(s => s != null && s.enabled && s.path == ScenePath);
+        }
+
+        /// <summary>
+        /// Compiles Wintry's own shaders and reports what the compiler said. A broken shader does not stop a
+        /// build or fail a test: it renders magenta on the headset and nowhere else, which is the most
+        /// expensive place to find out. The offline harness cannot see this at all, since it never runs a
+        /// shader compiler.
+        /// </summary>
+        private static Check ShaderCheck()
+        {
+            string[] names = { "WintryVR/Glass", "WintryVR/Glow" };
+            var problems = new List<string>();
+            var missing = new List<string>();
+            foreach (var name in names)
+            {
+                var shader = Shader.Find(name);
+                if (shader == null) { missing.Add(name); continue; }
+                if (!ShaderUtil.ShaderHasError(shader)) continue;
+                var messages = ShaderUtil.GetShaderMessages(shader);
+                foreach (var m in messages)
+                    problems.Add(name + ": " + m.message + (string.IsNullOrEmpty(m.file) ? "" : " (" + m.file + ":" + m.line + ")"));
+                if (messages == null || messages.Length == 0) problems.Add(name + ": reports an error with no message");
+            }
+            if (missing.Count > 0)
+                return new Check(false, "Shaders", "not found: " + string.Join(", ", missing) +
+                    " — the UI falls back to built-in unlit shaders and looks flat");
+            if (problems.Count > 0)
+                return new Check(false, "Shaders", string.Join(" | ", problems));
+            return new Check(true, "Shaders", string.Join(", ", names) + " compile clean");
         }
 
         private static Check RenderPipelineCheck()

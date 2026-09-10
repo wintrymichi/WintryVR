@@ -79,7 +79,50 @@ WintryVR (scene object)
 All network/AI/voice work is `async`/`await` on Tasks. `UnityWebRequest` is driven on the main thread through
 `MainThreadDispatcher`; providers return plain data objects; anything touching Unity objects is marshalled with
 `MainThreadDispatcher.RunAsync`. Long loops in texture generation run at bootstrap or in the asset pipeline
-(256–512 px on device).
+(`CharacterService.TextureResolution`, 512 px on device).
+
+## Character surfacing
+
+`ProceduralTextureGenerator` synthesises a full PBR set per look — base colour, normal, roughness,
+metallic/smoothness, emission, detail and occlusion — from the look's parameters and one of four presets
+(`smooth`, `frost`, `circuit`, `noise`). Two details make the difference between a surface that reads as a
+material and one that reads as tinted plastic:
+
+* **Cavity occlusion.** Derived from the height field by comparing each texel against the ring around it at two
+  radii. It ships as its own map and is also multiplied lightly into the base colour, so the form still reads
+  when the shader has fallen back to unlit and there is no occlusion slot to sample.
+* **Seam-free UVs.** `ProceduralMeshes.Icosphere` maps latitude/longitude, which wraps `u` from 1 back to 0 along
+  one meridian. With vertices shared, every triangle crossing it replays the whole texture backwards in a band
+  down the model, and the poles smear for the same reason in the other axis. `SplitUvSeam` duplicates those
+  vertices so neither happens; `SphereUvsDoNotWrapAcrossTheSeam` keeps it that way.
+
+Maps are bound by `WintryCharacterBody.AssignMaps`, which writes both the URP Lit and built-in property names
+and tiles the visor denser than the body so the pattern keeps its own scale on a much smaller surface. Sets are
+released on look change and on destroy — six textures per look leak quickly otherwise.
+
+## Spatial UI
+
+No Canvas and no EventSystem: panels, buttons and labels are meshes with trigger colliders, and
+`UIInteractionManager` raycasts them from whichever pointer is active (hand, controller, gaze, editor mouse).
+That keeps the UI in world space where it belongs and keeps it batchable.
+
+Three things carry most of the perceived quality:
+
+* **Glyph raster size.** A dynamic font is rasterised at `fontSize` pixels and then scaled to metres by
+  `characterSize`; the two multiply, so world size depends on the product while sharpness depends on
+  `fontSize` alone. Everything goes through `WorldLabel.Configure`, which rasters at
+  `WorldLabel.RasterFontSize` (160 px) and divides `characterSize` by the same factor — identical layout,
+  roughly three times the texel density, no more shimmering as the head moves.
+* **The pointer has a visible end.** `UIPointerCursor` draws a small ring where the ray lands plus a faint beam
+  back to the hand. Without it, aiming is guesswork and a near-miss is indistinguishable from the app ignoring
+  you. Both parts fade out when there is nothing to point at.
+* **Edges measured in metres.** `WintryVR/Glass` evaluates a rounded-rectangle signed distance in the plate's
+  real dimensions, passed in by `WintryMaterials.SetPanelShape`. Measured in uv instead, the highlight band
+  came out thicker on a panel's short axis and squared off across the rounded corners.
+
+Text meshes do not rebuild until the end of the frame their string was assigned in, so anything that measures
+text — the button's label fit, the label's backing plate — defers to `LateUpdate` and retries while the bounds
+are still degenerate, rather than measuring the previous string.
 
 ## Extension points (future features)
 

@@ -20,13 +20,16 @@ namespace WintryVR.AssetGeneration
             var emissionMask = new float[resolution * resolution];
             FillFields(look, resolution, seed, height, pattern, emissionMask);
 
+            var occlusion = BuildOcclusionField(resolution, height);
+
             var set = new GeneratedTextureSet { Resolution = resolution };
-            set.BaseColor = BuildBaseColor(look, resolution, pattern, emissionMask);
+            set.BaseColor = BuildBaseColor(look, resolution, pattern, emissionMask, occlusion);
             set.Normal = BuildNormal(resolution, height, 1.5f + look.PatternStrength * 3f);
             set.Roughness = BuildGray(resolution, i => Mathf.Clamp01(1f - look.Smoothness + pattern[i] * 0.15f * look.PatternStrength), "Roughness");
             set.Metallic = BuildMetallicGloss(look, resolution, pattern);
             set.Emission = BuildEmission(look, resolution, emissionMask);
             set.Detail = BuildGray(resolution, i => 0.5f + (pattern[i] - 0.5f) * 0.5f, "Detail");
+            set.Occlusion = BuildGray(resolution, i => occlusion[i], "Occlusion");
             return set;
         }
 
@@ -91,6 +94,42 @@ namespace WintryVR.AssetGeneration
             }
         }
 
+        /// <summary>
+        /// Cavity occlusion from the height field: a texel sitting below the average of the ring around it is
+        /// in a crease and gets darker. Two radii are combined so both the fine pattern and the broad shapes
+        /// contribute. This is what stops a procedural surface reading as flat plastic, and it is the one term
+        /// that still helps when the shader falls back to unlit, because it is multiplied into the base colour.
+        /// </summary>
+        private static float[] BuildOcclusionField(int n, float[] height)
+        {
+            var ao = new float[n * n];
+            for (int y = 0; y < n; y++)
+            {
+                for (int x = 0; x < n; x++)
+                {
+                    float h = height[y * n + x];
+                    float open = 0f;
+                    for (int r = 1; r <= 2; r++)
+                    {
+                        int step = r * Mathf.Max(1, n / 128);
+                        float ring = 0f;
+                        ring += height[y * n + (x - step + n) % n];
+                        ring += height[y * n + (x + step) % n];
+                        ring += height[((y - step + n) % n) * n + x];
+                        ring += height[((y + step) % n) * n + x];
+                        ring += height[((y - step + n) % n) * n + (x - step + n) % n];
+                        ring += height[((y - step + n) % n) * n + (x + step) % n];
+                        ring += height[((y + step) % n) * n + (x - step + n) % n];
+                        ring += height[((y + step) % n) * n + (x + step) % n];
+                        open += h - ring / 8f;
+                    }
+                    // open > 0 means the texel stands proud, < 0 means it sits in a crease
+                    ao[y * n + x] = Mathf.Clamp01(0.82f + open * 1.4f);
+                }
+            }
+            return ao;
+        }
+
         private static float Fbm(float x, float y, int octaves)
         {
             float sum = 0, amp = 0.5f, freq = 1f, norm = 0;
@@ -111,7 +150,7 @@ namespace WintryVR.AssetGeneration
             return t;
         }
 
-        private static Texture2D BuildBaseColor(WintryLookDefinition look, int n, float[] pattern, float[] emissionMask)
+        private static Texture2D BuildBaseColor(WintryLookDefinition look, int n, float[] pattern, float[] emissionMask, float[] occlusion)
         {
             var t = NewTex(n, "BaseColor", false);
             var px = new Color32[n * n];
@@ -120,6 +159,9 @@ namespace WintryVR.AssetGeneration
                 float p = pattern[i];
                 Color c = Color.Lerp(look.PrimaryColor, look.SecondaryColor, p * look.PatternStrength);
                 c = Color.Lerp(c, look.EmissionColor, emissionMask[i] * look.PatternStrength * 0.5f);
+                // keep a little cavity in the albedo so the form still reads under the unlit fallback shaders
+                float ao = Mathf.Lerp(1f, occlusion[i], 0.45f);
+                c = new Color(c.r * ao, c.g * ao, c.b * ao, c.a);
                 px[i] = c;
             }
             t.SetPixels32(px); t.Apply(true, false);
@@ -173,6 +215,21 @@ namespace WintryVR.AssetGeneration
             for (int i = 0; i < px.Length; i++) px[i] = look.EmissionColor * mask[i];
             t.SetPixels32(px); t.Apply(true, false);
             return t;
+        }
+
+        /// <summary>
+        /// Frees a set's textures. Generated maps are plain <see cref="Texture2D"/> instances, so nothing
+        /// collects them on their own: changing look six times without this leaks six full PBR sets.
+        /// </summary>
+        public static void Release(GeneratedTextureSet set)
+        {
+            if (set == null) return;
+            foreach (var t in new[] { set.BaseColor, set.Normal, set.Roughness, set.Metallic, set.Emission, set.Detail, set.Occlusion })
+            {
+                if (t == null) continue;
+                if (Application.isPlaying) UnityEngine.Object.Destroy(t); else UnityEngine.Object.DestroyImmediate(t);
+            }
+            set.BaseColor = set.Normal = set.Roughness = set.Metallic = set.Emission = set.Detail = set.Occlusion = null;
         }
 
         /// <summary>PNG bytes for caching/export.</summary>

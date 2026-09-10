@@ -61,8 +61,7 @@ namespace WintryVR.UI
             go.transform.SetParent(_root, false);
             go.transform.localPosition = pos;
             var tm = go.AddComponent<TextMesh>();
-            tm.font = WorldLabel.DefaultFont; tm.fontSize = 48; tm.characterSize = size; tm.anchor = TextAnchor.MiddleCenter; tm.alignment = TextAlignment.Center; tm.color = color;
-            var mr = go.GetComponent<MeshRenderer>(); if (mr != null && tm.font != null) mr.sharedMaterial = tm.font.material;
+            WorldLabel.Configure(tm, size * 48f, TextAnchor.MiddleCenter, TextAlignment.Center, color);
             return tm;
         }
 

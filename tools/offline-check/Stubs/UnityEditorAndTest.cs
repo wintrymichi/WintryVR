@@ -319,6 +319,23 @@ namespace UnityEditor
     public enum BuildTargetGroup { Unknown, Standalone, Android, iOS, WebGL }
     public enum BuildTarget { NoTarget = -2, StandaloneWindows64 = 19, Android = 13, iOS = 9, WebGL = 20 }
 
+    // UnityEditor.ShaderUtil, with the signatures WintrySetupVerifier relies on. The stand-in never runs a
+    // shader compiler, so it reports "no error" — the harness checks that the call sites compile, and the
+    // real answer only comes from Unity (see tools/offline-check/README.md).
+    public struct ShaderMessage
+    {
+        public string message { get; set; }
+        public string messageDetails { get; set; }
+        public string file { get; set; }
+        public int line { get; set; }
+    }
+
+    public static class ShaderUtil
+    {
+        public static bool ShaderHasError(Shader shader) { return false; }
+        public static ShaderMessage[] GetShaderMessages(Shader shader) { return new ShaderMessage[0]; }
+    }
+
     public static class EditorUserBuildSettings
     {
         public static BuildTarget activeBuildTarget { get { return default(BuildTarget); } }

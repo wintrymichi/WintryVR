@@ -140,7 +140,7 @@ namespace WintryVR.Core
             // ---- UI
             var uiRoot = new GameObject("WintryUI").transform;
             uiRoot.SetParent(transform, false);
-            var interaction = uiRoot.gameObject.AddComponent<UIInteractionManager>(); interaction.Initialize(input);
+            var interaction = uiRoot.gameObject.AddComponent<UIInteractionManager>(); interaction.Initialize(input, Rig.Head);
             var cards = New<InformationCardManager>(uiRoot, "Cards"); cards.Spatial = spatial;
             var highlights = New<SmartHighlightManager>(uiRoot, "Highlights"); highlights.Spatial = spatial; highlights.Enabled = settings.Vision.SmartHighlight;
             var pointers = New<SpatialPointerManager>(uiRoot, "Pointers"); pointers.Spatial = spatial; pointers.Origin = characterGo.transform;

@@ -76,7 +76,37 @@ namespace WintryVR.Tests
             var set = ProceduralTextureGenerator.Generate(CharacterVariants.GetLook(WintryVariant.Cyber), 64);
             Assert.IsNotNull(set.BaseColor); Assert.IsNotNull(set.Normal); Assert.IsNotNull(set.Roughness);
             Assert.IsNotNull(set.Metallic); Assert.IsNotNull(set.Emission); Assert.IsNotNull(set.Detail);
+            Assert.IsNotNull(set.Occlusion);
             Assert.AreEqual(64, set.Resolution);
+        }
+
+        [Test]
+        public void OcclusionVariesAcrossTheSurface()
+        {
+            // A flat occlusion map means the cavity term contributed nothing and the surface will read as
+            // plastic. The circuit preset has hard raised traces, so its creases must come out clearly darker.
+            var set = ProceduralTextureGenerator.Generate(CharacterVariants.GetLook(WintryVariant.Cyber), 64);
+            var px = set.Occlusion.GetPixels32();
+            byte min = 255, max = 0;
+            foreach (var p in px) { if (p.r < min) min = p.r; if (p.r > max) max = p.r; }
+            Assert.Greater(max - min, 12, "occlusion is nearly flat: min=" + min + " max=" + max);
+        }
+
+        [Test]
+        public void SphereUvsDoNotWrapAcrossTheSeam()
+        {
+            // A latitude/longitude sphere with shared vertices interpolates u the long way round inside every
+            // triangle that crosses the wrap meridian, replaying the whole texture backwards in a band down
+            // the model. After the seam split no triangle may span more than half the u range.
+            var mesh = ProceduralMeshes.Icosphere(0.1f, 2);
+            var uv = mesh.uv;
+            var tris = mesh.triangles;
+            for (int i = 0; i < tris.Length; i += 3)
+            {
+                float a = uv[tris[i]].x, b = uv[tris[i + 1]].x, c = uv[tris[i + 2]].x;
+                float span = Mathf.Max(a, Mathf.Max(b, c)) - Mathf.Min(a, Mathf.Min(b, c));
+                Assert.Less(span, 0.5f, "triangle " + (i / 3) + " wraps the uv seam (span " + span + ")");
+            }
         }
 
         [Test]

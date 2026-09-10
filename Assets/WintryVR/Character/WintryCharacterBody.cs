@@ -175,15 +175,46 @@ namespace WintryVR.Character
         private void ApplyTextures(GeneratedTextureSet t)
         {
             if (t == null) return;
-            if (t.BaseColor != null && _bodyMat.HasProperty("_BaseMap")) _bodyMat.SetTexture("_BaseMap", t.BaseColor);
-            if (t.BaseColor != null && _bodyMat.HasProperty("_MainTex")) _bodyMat.SetTexture("_MainTex", t.BaseColor);
-            if (t.Normal != null && _bodyMat.HasProperty("_BumpMap")) { _bodyMat.SetTexture("_BumpMap", t.Normal); _bodyMat.EnableKeyword("_NORMALMAP"); }
-            if (t.Metallic != null && _bodyMat.HasProperty("_MetallicGlossMap")) { _bodyMat.SetTexture("_MetallicGlossMap", t.Metallic); _bodyMat.EnableKeyword("_METALLICSPECGLOSSMAP"); }
-            if (t.Emission != null && _bodyMat.HasProperty("_EmissionMap")) _bodyMat.SetTexture("_EmissionMap", t.Emission);
+            // Body and head share one material and one set of maps at 1:1.
+            AssignMaps(_bodyMat, t, Vector2.one);
+            // The visor is a small, tight surface: tiling the same maps denser keeps the pattern reading at its
+            // own scale instead of stretching four texels across the whole face.
+            AssignMaps(_visorMat, t, new Vector2(2.5f, 1.5f));
+        }
+
+        /// <summary>
+        /// Binds a generated set to a material, covering both the URP Lit names and the built-in ones so the
+        /// maps still land when <see cref="WintryMaterials.FindShader"/> has fallen back off URP.
+        /// </summary>
+        private static void AssignMaps(Material m, GeneratedTextureSet t, Vector2 tiling)
+        {
+            if (m == null || t == null) return;
+            if (t.BaseColor != null)
+            {
+                if (m.HasProperty("_BaseMap")) { m.SetTexture("_BaseMap", t.BaseColor); m.SetTextureScale("_BaseMap", tiling); }
+                if (m.HasProperty("_MainTex")) { m.SetTexture("_MainTex", t.BaseColor); m.SetTextureScale("_MainTex", tiling); }
+            }
+            if (t.Normal != null && m.HasProperty("_BumpMap"))
+            {
+                m.SetTexture("_BumpMap", t.Normal); m.SetTextureScale("_BumpMap", tiling); m.EnableKeyword("_NORMALMAP");
+            }
+            if (t.Metallic != null && m.HasProperty("_MetallicGlossMap"))
+            {
+                m.SetTexture("_MetallicGlossMap", t.Metallic); m.SetTextureScale("_MetallicGlossMap", tiling); m.EnableKeyword("_METALLICSPECGLOSSMAP");
+            }
+            if (t.Occlusion != null && m.HasProperty("_OcclusionMap"))
+            {
+                m.SetTexture("_OcclusionMap", t.Occlusion); m.SetTextureScale("_OcclusionMap", tiling); m.EnableKeyword("_OCCLUSIONMAP");
+            }
+            if (t.Emission != null && m.HasProperty("_EmissionMap"))
+            {
+                m.SetTexture("_EmissionMap", t.Emission); m.SetTextureScale("_EmissionMap", tiling);
+            }
         }
 
         public void ApplyLook(WintryLookDefinition look, GeneratedTextureSet textures)
         {
+            if (_textures != null && !ReferenceEquals(_textures, textures)) ProceduralTextureGenerator.Release(_textures);
             _look = look; _textures = textures;
             WintryMaterials.SetColor(_bodyMat, look.PrimaryColor);
             if (_bodyMat.HasProperty("_Metallic")) _bodyMat.SetFloat("_Metallic", look.Metallic);
@@ -210,5 +241,7 @@ namespace WintryVR.Character
         }
 
         public int RendererCount => _renderers.Count;
+
+        private void OnDestroy() { ProceduralTextureGenerator.Release(_textures); _textures = null; }
     }
 }

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace WintryVR.Core
 {
@@ -11,10 +12,40 @@ namespace WintryVR.Core
     {
         private static readonly System.Collections.Generic.Dictionary<string, Material> _cache = new System.Collections.Generic.Dictionary<string, Material>();
 
+        /// <summary>
+        /// True when a scriptable render pipeline (URP here) is actually driving rendering.
+        /// </summary>
+        public static bool UniversalPipelineActive =>
+            GraphicsSettings.currentRenderPipeline != null || GraphicsSettings.defaultRenderPipeline != null;
+
+        /// <summary>
+        /// Picks the first shader in <paramref name="names"/> that exists <em>and</em> suits the active pipeline.
+        /// </summary>
+        /// <remarks>
+        /// The URP package being installed is not the same as URP being switched on. With the package present
+        /// but no pipeline asset assigned in Project Settings → Graphics, Unity renders through the built-in
+        /// pipeline while <c>Shader.Find</c> still happily returns URP-only shaders — so the intended fallback
+        /// never fired and the UI drew URP glass under a pipeline that cannot feed it. Skipping the
+        /// pipeline-specific names when URP is off makes the fallback real, and the app looks plainer instead
+        /// of wrong on a project that has not had a URP asset assigned yet.
+        /// </remarks>
         public static Shader FindShader(params string[] names)
         {
-            foreach (var n in names) { var s = Shader.Find(n); if (s != null) return s; }
-            return null;
+            bool urp = UniversalPipelineActive;
+            foreach (var n in names)
+            {
+                if (!urp && IsUniversalOnly(n)) continue;
+                var s = Shader.Find(n);
+                if (s != null) return s;
+            }
+            // never hand back null: a null shader is the magenta this whole method exists to avoid
+            return Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default");
+        }
+
+        private static bool IsUniversalOnly(string shaderName)
+        {
+            return shaderName != null
+                && (shaderName.StartsWith("WintryVR/") || shaderName.StartsWith("Universal Render Pipeline/"));
         }
 
         public static Material Glow(Color color, Color emission, float strength = 1.5f, float alpha = 1f, float fresnel = 2f)
@@ -77,6 +108,19 @@ namespace WintryVR.Core
             m.EnableKeyword("_ALPHABLEND_ON");
             m.DisableKeyword("_ALPHATEST_ON");
             m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+
+        /// <summary>
+        /// Tells a glass material the real dimensions of the plate it is drawn on, so its edge band can be
+        /// measured in metres and keep one thickness on both axes and around the corners. Harmless when the
+        /// shader has fallen back to a plain unlit one, which simply has no such properties.
+        /// </summary>
+        public static void SetPanelShape(Material m, float width, float height, float radius, float edgeWidth = 0.006f)
+        {
+            if (m == null) return;
+            if (m.HasProperty("_Size")) m.SetVector("_Size", new Vector4(Mathf.Max(1e-4f, width), Mathf.Max(1e-4f, height), 0f, 0f));
+            SetF(m, "_Radius", radius);
+            SetF(m, "_EdgeWidth", edgeWidth);
         }
 
         public static void SetColor(Material m, Color c) { Set(m, "_BaseColor", c); Set(m, "_Color", c); }

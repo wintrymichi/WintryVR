@@ -245,18 +245,19 @@ EditMode suite runs green:
 | | Result |
 |---|---|
 | `WintryVR.Runtime`, `WintryVR.Editor`, `WintryVR.Meta`, `WintryVR.Tests.EditMode` | compile, 0 errors |
-| EditMode tests | 56/56 pass |
+| EditMode tests | 58/58 pass |
 | Meta XR SDK + MRUK API surface | resolves against v74 |
 
 **Offline** (`cd tools/offline-check && dotnet build editor.csproj && dotnet build android.csproj && dotnet
 build meta.csproj && dotnet run --project tests.csproj`) — four configurations build with zero errors and zero
-warnings and the same 56 test cases pass, in seconds, on a machine with only the .NET SDK.
+warnings and the same 58 test cases pass, in seconds, on a machine with only the .NET SDK.
 
 | Verified | Still needs the headset |
 |---|---|
 | C# compiles for editor, Android and Meta configurations | Passthrough, hand tracking and anchors on-device |
-| 56/56 EditMode test cases pass | Camera frames through the Passthrough Camera API |
+| 58/58 EditMode test cases pass | Camera frames through the Passthrough Camera API |
 | Meta XR / MRUK references resolve against SDK 74 | Voice thresholds, LOD distances, thermal budget |
+| `WintryVR/Glass` and `WintryVR/Glow` compile clean | Frame timing and legibility at real reading distance |
 | Every asset has a unique `.meta` GUID | Shader appearance and frame timing under URP |
 
 ### Setup steps that stay manual
@@ -268,7 +269,8 @@ finish the job, and the verifier reports what is still missing:
    colour, min SDK 32, ASTC.
 2. **WintryVR → Setup → Enable XR loader for Android** — needs `com.unity.xr.management` and
    `com.unity.xr.oculus` to be installed.
-3. Create a URP asset and assign it in **Project Settings → Graphics**. Without one the UI still renders:
-   `WintryMaterials.FindShader` falls back from `WintryVR/Glass` and `WintryVR/Glow` to built-in unlit
-   shaders, so the app looks plainer rather than breaking.
+3. Create a URP asset and assign it in **Project Settings → Graphics**. Wintry's glass and glow shaders are
+   URP-only, and `WintryMaterials.FindShader` checks whether a pipeline asset is actually assigned rather
+   than whether the package is installed — so without one it falls back to built-in unlit shaders and the app
+   looks plainer instead of rendering wrong. Assign the asset to get the intended look.
 4. **WintryVR → Setup → Verify project setup** — re-run until it reports everything in place.
