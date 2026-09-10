@@ -16,11 +16,18 @@ namespace WintryVR.UI
         private float _dragDistance;
         private Vector3 _dragOffset;
         private bool _subscribed;
+        private UIPointerCursor _cursor;
 
-        public void Initialize(IInputService input)
+        // Physics.RaycastAll returns a fresh array on every call. At 72-90 Hz that is a steady stream of
+        // garbage for the collector to sweep up mid-frame, which on a headset shows up as periodic hitching.
+        // A reusable buffer keeps the hover test allocation-free.
+        private readonly RaycastHit[] _hits = new RaycastHit[16];
+
+        public void Initialize(IInputService input, Transform head = null)
         {
             Input = input;
             if (!_subscribed) { Input.OnGesture += OnGesture; _subscribed = true; }
+            if (_cursor == null) _cursor = UIPointerCursor.Create(transform, head);
         }
 
         private void OnGesture(GestureEvent g)
@@ -59,19 +66,29 @@ namespace WintryVR.UI
             if (_dragging != null)
             {
                 _dragging.Move(ray.GetPoint(_dragDistance) + _dragOffset);
+                if (_cursor != null) _cursor.Point(ray, _dragDistance, true);
                 return;
             }
-            SetHover(RaycastButton(ray, out _));
+            var btn = RaycastButton(ray, out RaycastHit hit);
+            SetHover(btn);
+            if (_cursor != null)
+            {
+                // show the cursor on any surface the pointer finds, brighter when it is a control
+                if (btn != null) _cursor.Point(ray, hit.distance, true);
+                else if (Physics.Raycast(ray, out RaycastHit surface, MaxDistance, ~0, QueryTriggerInteraction.Ignore))
+                    _cursor.Point(ray, surface.distance, false);
+                else _cursor.Hide();
+            }
         }
 
         private WintryButton RaycastButton(Ray ray, out RaycastHit hit)
         {
-            var hits = Physics.RaycastAll(ray, MaxDistance, ~0, QueryTriggerInteraction.Collide);
+            int count = Physics.RaycastNonAlloc(ray, _hits, MaxDistance, ~0, QueryTriggerInteraction.Collide);
             WintryButton best = null; float bestDist = float.MaxValue; hit = default;
-            foreach (var h in hits)
+            for (int i = 0; i < count; i++)
             {
-                var b = h.collider.GetComponent<WintryButton>();
-                if (b != null && h.distance < bestDist) { best = b; bestDist = h.distance; hit = h; }
+                var b = _hits[i].collider.GetComponent<WintryButton>();
+                if (b != null && _hits[i].distance < bestDist) { best = b; bestDist = _hits[i].distance; hit = _hits[i]; }
             }
             return best;
         }

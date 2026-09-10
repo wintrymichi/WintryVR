@@ -53,7 +53,7 @@ namespace WintryVR.Core
 
         private async void Start()
         {
-            var _ = MainThreadDispatcher.Instance;
+            _ = MainThreadDispatcher.Instance;
             var cfg = WintryConfig.Instance;
             var settings = WintrySettings.Current;
             DemoMode = cfg.DemoMode || ForceDemoMode || (Application.isEditor && !UnityEngine.XR.XRSettings.isDeviceActive);
@@ -140,7 +140,7 @@ namespace WintryVR.Core
             // ---- UI
             var uiRoot = new GameObject("WintryUI").transform;
             uiRoot.SetParent(transform, false);
-            var interaction = uiRoot.gameObject.AddComponent<UIInteractionManager>(); interaction.Initialize(input);
+            var interaction = uiRoot.gameObject.AddComponent<UIInteractionManager>(); interaction.Initialize(input, Rig.Head);
             var cards = New<InformationCardManager>(uiRoot, "Cards"); cards.Spatial = spatial;
             var highlights = New<SmartHighlightManager>(uiRoot, "Highlights"); highlights.Spatial = spatial; highlights.Enabled = settings.Vision.SmartHighlight;
             var pointers = New<SpatialPointerManager>(uiRoot, "Pointers"); pointers.Spatial = spatial; pointers.Origin = characterGo.transform;
@@ -154,7 +154,7 @@ namespace WintryVR.Core
             WintryEvents.Subscribe<SettingsChangedEvent>(_ => highlights.Enabled = WintrySettings.Current.Vision.SmartHighlight);
 
             // ---- location (opt-in)
-            var location = gameObject.AddComponent<LocationService>();
+            var location = gameObject.AddComponent<WintryVR.MR.LocationService>();
             location.SetEnabled(settings.Privacy.LocationAllowed);
             WintryEvents.Subscribe<SettingsChangedEvent>(_ => location.SetEnabled(WintrySettings.Current.Privacy.LocationAllowed));
 

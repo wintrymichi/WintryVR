@@ -229,5 +229,84 @@ LOD distances, performance budgets).
 * `docs/PRIVACY.md` — privacy model, permissions, data lifecycle
 * `docs/PHASES.md` — phase-by-phase status
 * `docs/META_SDK_NOTES.md` — exact Meta APIs used and what to check per SDK version
+* `tools/preview/README.md` — rendering a look sheet without a headset
 
 Tests: **Window → General → Test Runner → EditMode** (intents, memory, JSON, voice, assistant parsing, textures/LODs).
+
+---
+
+## Verification status
+
+Verified two ways: in **Unity 6000.0.46f1 with Meta XR SDK 74** (the real editor, batch mode), and in a
+stand-in harness that compiles the same C# without Unity installed (`tools/offline-check`).
+
+**In real Unity** — all four project assemblies compile with zero errors, `WintryVR.Meta` included, and the
+EditMode suite runs green:
+
+| | Result |
+|---|---|
+| `WintryVR.Runtime`, `WintryVR.Editor`, `WintryVR.Meta`, `WintryVR.Tests.EditMode` | compile, 0 errors |
+| EditMode tests | 58/58 pass |
+| Meta XR SDK + MRUK API surface | resolves against v74 |
+
+**Offline** (`cd tools/offline-check && dotnet build editor.csproj && dotnet build android.csproj && dotnet
+build meta.csproj && dotnet run --project tests.csproj`) — four configurations build with zero errors and zero
+warnings and the same 58 test cases pass, in seconds, on a machine with only the .NET SDK.
+
+A look sheet renders the character, the eight variants, their generated maps and the spatial UI to PNG from a
+headless Unity (`tools/preview`) — useful when there is no headset to hand, and how several rendering defects
+were found that a green test run cannot see.
+
+| Verified | Still needs the headset |
+|---|---|
+| C# compiles for editor, Android and Meta configurations | Passthrough, hand tracking and anchors on-device |
+| 58/58 EditMode test cases pass | Camera frames through the Passthrough Camera API |
+| Meta XR / MRUK references resolve against SDK 74 | Voice thresholds, LOD distances, thermal budget |
+| `WintryVR/Glass` and `WintryVR/Glow` compile clean | Frame timing and legibility at real reading distance |
+| Every asset has a unique `.meta` GUID | Shader appearance and frame timing under URP |
+
+### Building
+
+One command does the whole setup and produces an APK, so a fresh clone can be built without clicking through
+Project Settings:
+
+```bash
+"<Unity>/Unity.exe" -batchmode -quit -projectPath .   -executeMethod WintryVR.EditorTools.WintryBuild.BuildQuestApk   -logFile build.log -buildOutput Build/WintryVR.apk
+```
+
+It configures the player for Quest, creates and assigns a URP asset, imports the TextMeshPro essentials,
+creates the XR settings object and enables the Oculus loader for Android, adds the scene to the build
+settings, and builds. Each of those is also a menu item under **WintryVR → Setup**, and
+**WintryVR → Build → Build Quest APK** runs the same path from the editor.
+
+Two details it handles that cost an afternoon to find:
+
+* The XR settings object is normally created as a side effect of *opening* Project Settings → XR Plug-in
+  Management. A headless build never opens it, so without `GetOrCreate` the APK ships with no loader and runs
+  flat on the headset.
+* The OpenXR package registers its settings during a build and then aborts that same build with "OpenXR
+  Settings found in project but not yet loaded. Please build again." The build retries once for that reason.
+* Gradle reaches its daemon through a java.nio Selector, which on Windows is a pair of AF_UNIX sockets created
+  in the temp directory. If that directory cannot host them the build dies with `java.io.IOException: Unable to
+  establish loopback connection`, after IL2CPP has compiled and with nothing pointing at a directory. Gradle is
+  handed a project-local temp folder to avoid it. One machine here failed exactly this way — AF_UNIX connect
+  returned "Invalid argument" for `%TEMP%` and worked in every other folder — and `netsh winsock reset` did not
+  help; only moving the socket did.
+* Unity 6 defaults the Android **Application Entry Point** to *GameActivity*, and since `ProjectSettings/` is
+  not versioned every fresh clone inherits that. The APK then contains only `UnityPlayerGameActivity`, while
+  our manifest declares `UnityPlayerActivity` as the VR entry — the one Horizon OS launches. The class is not
+  there, the activity dies before the first frame, and in the headset library the icon simply does nothing.
+  The setup step pins the entry point to *Activity*, and **Verify project setup** reports it as "Application
+  entry". If you have ever built with GameActivity, uninstall the old package before installing the new one.
+* `Assets/Plugins/Android/AndroidManifest.xml` deliberately sets no `android:label`. Unity's launcher manifest
+  already sets it from `PlayerSettings.productName`, and declaring it twice fails the manifest merger. Rename
+  the app in Player Settings.
+
+`ProjectSettings/` is versioned, which it was not at first: the project used to ship only the editor version and
+rely on the setup steps to fill in Unity's defaults. That is what let the entry-point bug happen, because the
+one setting that decides whether the app opens at all lives in `ProjectSettings.asset` and was regenerated as
+Unity's default on every clone. A setting that has to be re-applied by hand is a setting that is one forgotten
+menu item away from being wrong. Run **WintryVR → Setup → Verify project setup** to check the state of the
+project anyway; it checks the build target, colour space, scripting backend, architecture, minimum SDK,
+graphics API, application entry point, runtime config, scene list, render pipeline, shader compilation and XR
+loader.

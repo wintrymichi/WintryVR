@@ -27,11 +27,24 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:glEsVersion="0x00030002" android:required="true" />
 
-    <application android:label="WintryVR" android:allowBackup="false" android:usesCleartextTraffic="true">
+    <!--
+      No android:label here on purpose. Unity's generated launcher manifest already sets it to @string/app_name,
+      taken from PlayerSettings.productName, and declaring it again in this one makes the merger fail
+      :launcher:processReleaseMainManifest with two values it will not choose between — after IL2CPP has already
+      compiled, which is a long wait for a duplicated attribute. Rename the app in Player Settings instead.
+    -->
+    <application android:allowBackup="false" android:usesCleartextTraffic="true">
         <!-- Supported headsets; Quest 3S is covered by the same "quest3" family entry plus explicit listing -->
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest3|quest3s" />
         <meta-data android:name="com.oculus.handtracking.frequency" android:value="HIGH" />
         <meta-data android:name="com.oculus.handtracking.version" android:value="V2.0" />
+        <!--
+          This must stay UnityPlayerActivity, and the player's Android "Application Entry Point" must be
+          Activity (WintryProjectSetup pins it; the setup verifier checks it). Unity 6 defaults to GameActivity,
+          which puts only UnityPlayerGameActivity in the APK; Horizon OS launches the activity carrying the
+          com.oculus.intent.category.VR category — this one — and a missing class means the app closes before
+          it draws anything. In the headset library that looks like "tap the icon, nothing happens".
+        -->
         <activity android:name="com.unity3d.player.UnityPlayerActivity"
                   android:theme="@style/UnityThemeSelector"
                   android:screenOrientation="landscape"

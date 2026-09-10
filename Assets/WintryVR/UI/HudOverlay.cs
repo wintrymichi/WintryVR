@@ -14,8 +14,7 @@ namespace WintryVR.UI
         public float Distance = 0.9f;
         private Transform _root;
         private Material _camMat, _micMat, _cloudMat;
-        private TextMesh _status, _subtitle;
-        private WorldLabel _statusLabel;
+        private WintryText _status, _subtitle;
         private string _statusText = "";
         private float _subtitleUntil;
         private bool _online = true;
@@ -33,8 +32,11 @@ namespace WintryVR.UI
             _cloudMat = Dot(new Vector3(0.03f, 0.13f, 0f), "Cloud");
             SetIndicators(false, false, false);
 
-            _status = MakeText("Status", new Vector3(0f, 0.105f, 0f), 0.0022f, new Color(0.85f, 0.95f, 1f, 0.9f));
-            _subtitle = MakeText("Subtitle", new Vector3(0f, -0.12f, 0f), 0.0028f, Color.white);
+            _status = WintryText.Create("Status", _root, new Vector3(0f, 0.105f, 0f), 0.0068f,
+                                        TextRole.Ui, TextAnchor.MiddleCenter, new Color(0.85f, 0.95f, 1f, 0.9f));
+            _subtitle = WintryText.Create("Subtitle", _root, new Vector3(0f, -0.12f, 0f), 0.0104f,
+                                          TextRole.Body, TextAnchor.MiddleCenter, Color.white);
+            _subtitle.SetArea(new Vector2(0.46f, 0.09f));
 
             WintryEvents.Subscribe<PrivacyIndicatorEvent>(e => SetIndicators(e.CameraActive, e.MicrophoneActive, e.CloudActive));
             WintryEvents.Subscribe<StateChangedEvent>(e => { _state = e.Current; RefreshStatus(); });
@@ -54,17 +56,6 @@ namespace WintryVR.UI
             var m = WintryMaterials.Glow(_off, _off, 1f, 0.35f);
             mr.sharedMaterial = m; mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return m;
-        }
-
-        private TextMesh MakeText(string name, Vector3 pos, float size, Color color)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(_root, false);
-            go.transform.localPosition = pos;
-            var tm = go.AddComponent<TextMesh>();
-            tm.font = WorldLabel.DefaultFont; tm.fontSize = 48; tm.characterSize = size; tm.anchor = TextAnchor.MiddleCenter; tm.alignment = TextAlignment.Center; tm.color = color;
-            var mr = go.GetComponent<MeshRenderer>(); if (mr != null && tm.font != null) mr.sharedMaterial = tm.font.material;
-            return tm;
         }
 
         private void SetIndicators(bool cam, bool mic, bool cloud)
@@ -94,13 +85,13 @@ namespace WintryVR.UI
                     case AssistantState.Searching: _statusText = Localization.Get("status.searching", lang); break;
                     default: _statusText = ""; break;
                 }
-            if (_status != null) _status.text = _statusText;
+            if (_status != null) _status.SetText(_statusText);
         }
 
         public void ShowSubtitle(string text, float seconds)
         {
             if (!WintrySettings.Current.Accessibility.Subtitles || _subtitle == null) return;
-            _subtitle.text = GlassPanel.Wrap(text, 48);
+            _subtitle.SetText(text);
             _subtitleUntil = Time.time + seconds;
         }
 
@@ -112,7 +103,7 @@ namespace WintryVR.UI
             _root.position = Vector3.Lerp(_root.position, target, 1f - Mathf.Exp(-10f * Time.deltaTime));
             _root.rotation = Quaternion.Slerp(_root.rotation, Quaternion.LookRotation(Head.forward, Vector3.up), 1f - Mathf.Exp(-10f * Time.deltaTime));
             _root.localScale = Vector3.one * WintrySettings.Current.Accessibility.TextSize;
-            if (_subtitle != null && Time.time > _subtitleUntil && _subtitle.text.Length > 0) _subtitle.text = "";
+            if (_subtitle != null && Time.time > _subtitleUntil && _subtitle.Text.Length > 0) _subtitle.SetText("");
         }
     }
 }

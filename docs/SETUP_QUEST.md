@@ -13,7 +13,12 @@ in its asmdef) and the app runs with the generic rig: no passthrough, no hands, 
 
 ## Project settings
 
-1. **WintryVR → Setup → Configure Player Settings for Quest 3 & 3S**.
+1. **WintryVR → Setup → Configure Player Settings for Quest 3 & 3S**. Among other things this pins
+   *Player → Android → Other Settings → Application Entry Point* to **Activity**. Unity 6 defaults it to
+   *GameActivity*, and with that the APK contains no `UnityPlayerActivity` — which is the activity our manifest
+   marks with `com.oculus.intent.category.VR`, and therefore the one the headset launches. The symptom is an app
+   that installs fine and then does nothing when tapped in the library. **Verify project setup** reports the
+   value under "Application entry".
 2. **XR Plug-in Management (Android)** → tick **OpenXR**. Under *OpenXR → Features* enable the Meta Quest
    feature group (Meta Quest Support, hand tracking, passthrough as applicable) and add the *Oculus Touch
    Controller Profile* + *Hand Interaction Profile*. Alternatively tick the **Oculus** loader.
@@ -40,6 +45,22 @@ adb install -r WintryVR.apk
 adb shell am start -n com.wintry.wintryvr/com.unity3d.player.UnityPlayerActivity
 adb logcat -s Unity | grep Wintry
 ```
+
+One command does install, launch and diagnosis together, and removes the previous copy first so no stale
+launcher entry survives:
+
+```
+powershell -ExecutionPolicy Bypass -File tools/deploy-quest.ps1
+```
+
+It finds `adb` inside the Unity Android SDK, says whether the headset is connected, unauthorised or asleep,
+and after launching reports either the process id or the crash log, instead of leaving you with a silent icon.
+Pass `-Keep` to install over the existing app and preserve its pushed config and settings.
+
+If the icon does nothing when tapped, the second command above tells you why within a second: an
+`Error type 3 / Activity class {...UnityPlayerActivity} does not exist` means the APK was built with the
+GameActivity entry point (see step 1 above); `adb logcat -b crash` shows any other startup crash. Uninstall
+first (`adb uninstall com.wintry.wintryvr`) when switching entry points, so no stale activity survives.
 
 Push configuration/secrets without rebuilding:
 

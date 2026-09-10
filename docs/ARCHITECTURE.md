@@ -79,7 +79,88 @@ WintryVR (scene object)
 All network/AI/voice work is `async`/`await` on Tasks. `UnityWebRequest` is driven on the main thread through
 `MainThreadDispatcher`; providers return plain data objects; anything touching Unity objects is marshalled with
 `MainThreadDispatcher.RunAsync`. Long loops in texture generation run at bootstrap or in the asset pipeline
-(256–512 px on device).
+(`CharacterService.TextureResolution`, 512 px on device).
+
+## Character surfacing
+
+`ProceduralTextureGenerator` synthesises a full PBR set per look — base colour, normal, roughness,
+metallic/smoothness, emission, detail and occlusion — from the look's parameters and one of four presets
+(`smooth`, `frost`, `circuit`, `noise`). Two details make the difference between a surface that reads as a
+material and one that reads as tinted plastic:
+
+* **Cavity occlusion.** Derived from the height field by comparing each texel against the ring around it at two
+  radii. It ships as its own map and is also multiplied lightly into the base colour, so the form still reads
+  when the shader has fallen back to unlit and there is no occlusion slot to sample.
+* **Seam-free UVs.** `ProceduralMeshes.Icosphere` maps latitude/longitude, which wraps `u` from 1 back to 0 along
+  one meridian. With vertices shared, every triangle crossing it replays the whole texture backwards in a band
+  down the model, and the poles smear for the same reason in the other axis. `SplitUvSeam` duplicates those
+  vertices so neither happens; `SphereUvsDoNotWrapAcrossTheSeam` keeps it that way.
+
+Maps are bound by `WintryCharacterBody.AssignMaps`, which writes both the URP Lit and built-in property names
+and tiles the visor denser than the body so the pattern keeps its own scale on a much smaller surface. Sets are
+released on look change and on destroy — six textures per look leak quickly otherwise.
+
+The noise presets are periodic in `u` (`TileFbm`, `TileRidged`): splitting the uv seam stops the texture
+smearing across the wrap meridian, but Perlin has no period, so without this the pattern still fails to meet
+itself and leaves a visible line down the model.
+
+The face is placed against the head surface rather than at fixed depths. `visorSurfaceZ` evaluates the visor
+ellipsoid so the lenses, brow and mouth sit proud of it; laid out by hand every one of them ended up inside the
+skull and Wintry rendered as a blank ball.
+
+Without HDR or bloom, "glow" is only ever a value between 0 and 1, so `WintryVR/Glow` compresses its peak and
+rescales all three channels together — clipping per channel turned the signature blue white. `_CoreGlow`
+chooses where the emission sits: a shell like the Core orb wants it on the silhouette rim, a lens like an eye
+has to be brightest looking straight at it.
+
+`tools/preview` renders all of this to PNG from a headless Unity, which is how those problems were found.
+
+## Spatial UI
+
+No Canvas and no EventSystem: panels, buttons and labels are meshes with trigger colliders, and
+`UIInteractionManager` raycasts them from whichever pointer is active (hand, controller, gaze, editor mouse).
+That keeps the UI in world space where it belongs and keeps it batchable.
+
+Three things carry most of the perceived quality:
+
+* **Type.** All world text goes through `WintryText`, which draws Inter through TextMeshPro's signed-distance
+  field. A bitmap atlas magnified to reading distance crawls along the glyph edges as the head moves; an SDF
+  glyph is stored as distances and stays sharp at any size and angle. Inter is an OFL-licensed UI face with a
+  tall x-height and open apertures, which is what survives low angular resolution — Apple's SF Pro cannot be
+  redistributed, so it was never an option. Roles carry their own optical treatment: titles take Inter Display
+  tightened, small UI text takes Inter Medium opened up. The SDF atlas is built from the TTF at runtime, so
+  only the font ships. If TextMeshPro or its settings asset is missing the class falls back to `TextMesh`
+  instead of throwing — a font problem should cost sharpness, never the interface.
+* **The pointer has a visible end.** `UIPointerCursor` draws a small ring where the ray lands plus a faint beam
+  back to the hand. Without it, aiming is guesswork and a near-miss is indistinguishable from the app ignoring
+  you. Both parts fade out when there is nothing to point at.
+* **Glass with a real edge.** `WintryVR/Glass` reconstructs the thickness a flat plate does not have, from a
+  signed distance to its own outline. That one number gives where the bevel is, which way it faces and how
+  steep it is; refraction, dispersion, the specular streak and the rim all follow from it. The outline is a
+  p-norm squircle rather than a circular round-rect, because a circular corner meets the straight edge with
+  curvature jumping from zero to 1/r and the eye reads that as a rectangle with its ends filed off.
+  `ProceduralMeshes.RoundedRect` traces the same curve, since a circular mesh would crop the shader's corners.
+  Sizes reach the shader in metres through `WintryMaterials.SetPanelShape`; measured in uv, the band came out
+  thicker on a panel's short axis.
+
+  Refraction samples `_CameraOpaqueTexture`, so it only runs when the pipeline actually resolves one —
+  `WintryMaterials.SceneColorAvailable` checks the URP asset rather than assuming. On a headset that texture
+  holds virtual content only: passthrough is composited underneath by the runtime and never reaches the colour
+  buffer, so the glass bends other panels and Wintry, while the room comes through by ordinary alpha.
+
+  Glass sits at render queue 2960, below the transparent default. Plate and label are millimetres apart, so
+  per-object distance sorting decided their order arbitrarily, and whenever the plate won it composited its
+  refracted background over its own title.
+
+SDF text measures on demand, so layout that depends on text size is exact. The fallback path does not: a
+`TextMesh` rebuilds at the end of the frame its string was assigned in, so anything measuring it — the button's
+label fit, a label's backing plate — defers to `LateUpdate` and retries while the bounds are still degenerate.
+`WintryText.Measured` reports which case you are in.
+
+One unit trap is worth knowing: TextMeshPro sizes world text in points, ten to the transform unit, so an em is
+`fontSize / 10` metres — but its RectTransform and its reported bounds are already in transform units. Scaling
+those by ten as well makes every wrap box ten metres wide, so text never wraps, and every measurement comes
+back a fifth of its real size.
 
 ## Extension points (future features)
 

@@ -39,13 +39,14 @@ namespace WintryVR.Core
                 }
                 tris = newTris;
             }
+            var dir = new List<Vector3>(verts);
+            var uv = new List<Vector2>(dir.Count);
+            for (int i = 0; i < dir.Count; i++) uv.Add(SphereUv(dir[i]));
+            SplitUvSeam(dir, uv, tris);
+
             var mesh = new Mesh { name = key };
-            var vArr = new Vector3[verts.Count]; var nArr = new Vector3[verts.Count]; var uv = new Vector2[verts.Count];
-            for (int i = 0; i < verts.Count; i++)
-            {
-                nArr[i] = verts[i]; vArr[i] = verts[i] * radius;
-                uv[i] = new Vector2(0.5f + Mathf.Atan2(verts[i].z, verts[i].x) / (2f * Mathf.PI), 0.5f + Mathf.Asin(Mathf.Clamp(verts[i].y, -1f, 1f)) / Mathf.PI);
-            }
+            var vArr = new Vector3[dir.Count]; var nArr = new Vector3[dir.Count];
+            for (int i = 0; i < dir.Count; i++) { nArr[i] = dir[i]; vArr[i] = dir[i] * radius; }
             mesh.SetVertices(vArr); mesh.SetNormals(nArr); mesh.SetUVs(0, uv); mesh.SetTriangles(tris, 0);
             mesh.RecalculateBounds(); mesh.RecalculateTangents();
             _cache[key] = mesh;
@@ -58,6 +59,55 @@ namespace WintryVR.Core
             if (cache.TryGetValue(key, out int idx)) return idx;
             var m = ((verts[a] + verts[b]) * 0.5f).normalized;
             verts.Add(m); idx = verts.Count - 1; cache[key] = idx; return idx;
+        }
+
+        private static Vector2 SphereUv(Vector3 d)
+        {
+            return new Vector2(0.5f + Mathf.Atan2(d.z, d.x) / (2f * Mathf.PI),
+                               0.5f + Mathf.Asin(Mathf.Clamp(d.y, -1f, 1f)) / Mathf.PI);
+        }
+
+        /// <summary>
+        /// A latitude/longitude mapping wraps u from 1 back to 0 along one meridian. With vertices shared, every
+        /// triangle crossing that meridian interpolates u the long way round and replays the whole texture
+        /// backwards inside it — a smeared band straight down the head. The poles have the same problem in the
+        /// other axis: a single vertex there carries one arbitrary u for every triangle that meets it.
+        /// Both are fixed by duplicating the offending vertices: seam vertices get a copy at u + 1, and each
+        /// pole triangle gets its own apex placed at the midpoint of the edge opposite it.
+        /// </summary>
+        private static void SplitUvSeam(List<Vector3> dir, List<Vector2> uv, List<int> tris)
+        {
+            var wrapped = new Dictionary<int, int>();
+            for (int i = 0; i < tris.Count; i += 3)
+            {
+                float uMax = Mathf.Max(uv[tris[i]].x, Mathf.Max(uv[tris[i + 1]].x, uv[tris[i + 2]].x));
+                for (int k = 0; k < 3; k++)
+                {
+                    int v = tris[i + k];
+                    if (uv[v].x >= uMax - 0.5f) continue;      // on the near side of the seam already
+                    if (!wrapped.TryGetValue(v, out int copy))
+                    {
+                        dir.Add(dir[v]);
+                        uv.Add(new Vector2(uv[v].x + 1f, uv[v].y));
+                        copy = dir.Count - 1;
+                        wrapped[v] = copy;
+                    }
+                    tris[i + k] = copy;
+                }
+            }
+
+            for (int i = 0; i < tris.Count; i += 3)
+            {
+                for (int k = 0; k < 3; k++)
+                {
+                    int v = tris[i + k];
+                    if (Mathf.Abs(dir[v].y) < 0.999f) continue; // not a pole vertex
+                    int b = tris[i + (k + 1) % 3], c = tris[i + (k + 2) % 3];
+                    dir.Add(dir[v]);
+                    uv.Add(new Vector2((uv[b].x + uv[c].x) * 0.5f, uv[v].y));
+                    tris[i + k] = dir.Count - 1;
+                }
+            }
         }
 
         /// <summary>Flat ring in the XY plane (facing +Z).</summary>
@@ -170,17 +220,36 @@ namespace WintryVR.Core
         }
 
         /// <summary>Rounded rectangle (XY plane) used for glass panels.</summary>
-        public static Mesh RoundedRect(float w, float h, float radius, int cornerSegments)
+        /// <summary>Corner continuity used across the UI. 2 is a plain circular arc; 4 is a squircle.</summary>
+        public const float SquircleExponent = 4f;
+
+        /// <summary>
+        /// A rounded rectangle whose corners follow a p-norm rather than a circular arc.
+        /// </summary>
+        /// <remarks>
+        /// A circular corner meets the straight edge with curvature jumping from zero to 1/r in one step, and the
+        /// eye reads that discontinuity as a rectangle with its ends filed off. A superellipse ramps the curvature
+        /// in, which is the corner Apple uses on hardware and in software and the reason their panels look
+        /// carved rather than clipped. <c>WintryVR/Glass</c> evaluates the same curve for its bevel, so the mesh
+        /// silhouette and the shader's outline have to agree — a circular mesh would crop the shader's corners.
+        /// </remarks>
+        public static Mesh RoundedRect(float w, float h, float radius, int cornerSegments, float corner = SquircleExponent)
         {
             var verts = new List<Vector3> { Vector3.zero };
             var uv = new List<Vector2> { new Vector2(0.5f, 0.5f) };
             radius = Mathf.Min(radius, Mathf.Min(w, h) * 0.5f);
+            cornerSegments = Mathf.Max(cornerSegments, 6);   // a squircle needs more samples than an arc
             Vector2[] centres = { new Vector2(w / 2 - radius, h / 2 - radius), new Vector2(-w / 2 + radius, h / 2 - radius), new Vector2(-w / 2 + radius, -h / 2 + radius), new Vector2(w / 2 - radius, -h / 2 + radius) };
             for (int c = 0; c < 4; c++)
                 for (int i = 0; i <= cornerSegments; i++)
                 {
                     float a = (c * 90f + i * 90f / cornerSegments) * Mathf.Deg2Rad;
-                    var p = centres[c] + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius;
+                    float cs = Mathf.Cos(a), sn = Mathf.Sin(a);
+                    // superellipse point: |x|^n + |y|^n = r^n, traced by raising the circle's components
+                    float e = 2f / Mathf.Max(2f, corner);
+                    var dir = new Vector2(Mathf.Sign(cs) * Mathf.Pow(Mathf.Abs(cs), e),
+                                          Mathf.Sign(sn) * Mathf.Pow(Mathf.Abs(sn), e));
+                    var p = centres[c] + dir * radius;
                     verts.Add(new Vector3(p.x, p.y, 0));
                     uv.Add(new Vector2(p.x / w + 0.5f, p.y / h + 0.5f));
                 }

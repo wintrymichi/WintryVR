@@ -20,13 +20,16 @@ namespace WintryVR.AssetGeneration
             var emissionMask = new float[resolution * resolution];
             FillFields(look, resolution, seed, height, pattern, emissionMask);
 
+            var occlusion = BuildOcclusionField(resolution, height);
+
             var set = new GeneratedTextureSet { Resolution = resolution };
-            set.BaseColor = BuildBaseColor(look, resolution, pattern, emissionMask);
+            set.BaseColor = BuildBaseColor(look, resolution, pattern, emissionMask, occlusion);
             set.Normal = BuildNormal(resolution, height, 1.5f + look.PatternStrength * 3f);
             set.Roughness = BuildGray(resolution, i => Mathf.Clamp01(1f - look.Smoothness + pattern[i] * 0.15f * look.PatternStrength), "Roughness");
             set.Metallic = BuildMetallicGloss(look, resolution, pattern);
             set.Emission = BuildEmission(look, resolution, emissionMask);
             set.Detail = BuildGray(resolution, i => 0.5f + (pattern[i] - 0.5f) * 0.5f, "Detail");
+            set.Occlusion = BuildGray(resolution, i => occlusion[i], "Occlusion");
             return set;
         }
 
@@ -48,8 +51,8 @@ namespace WintryVR.AssetGeneration
                         case "frost":
                             {
                                 // crystalline branching: layered ridged noise
-                                float r1 = Ridged(u * scale + ox, v * scale + oy);
-                                float r2 = Ridged(u * scale * 2.3f + ox * 2f, v * scale * 2.3f + oy * 2f);
+                                float r1 = TileRidged(u, v, scale, ox, oy);
+                                float r2 = TileRidged(u, v, scale * 2.3f, ox * 2f, oy * 2f);
                                 p = Mathf.Clamp01(r1 * 0.7f + r2 * 0.3f);
                                 h = p;
                                 e = Mathf.Clamp01((p - 0.7f) / 0.3f);
@@ -58,8 +61,8 @@ namespace WintryVR.AssetGeneration
                         case "circuit":
                             {
                                 // grid of traces with pads: quantised noise lines
-                                float gx = Mathf.Abs(Mathf.Frac(u * scale * 2f) - 0.5f);
-                                float gy = Mathf.Abs(Mathf.Frac(v * scale * 2f) - 0.5f);
+                                float gx = Mathf.Abs(Mathf.Repeat(u * scale * 2f, 1f) - 0.5f);
+                                float gy = Mathf.Abs(Mathf.Repeat(v * scale * 2f, 1f) - 0.5f);
                                 float cell = Mathf.PerlinNoise(Mathf.Floor(u * scale * 2f) * 0.37f + ox, Mathf.Floor(v * scale * 2f) * 0.37f + oy);
                                 bool horizontal = cell > 0.5f;
                                 float line = horizontal ? gy : gx;
@@ -72,23 +75,87 @@ namespace WintryVR.AssetGeneration
                             }
                         case "noise":
                             {
-                                float f = Fbm(u * scale + ox, v * scale + oy, 4);
+                                float f = TileFbm(u, v, scale, ox, oy, 4);
                                 p = f; h = f;
                                 e = Mathf.Clamp01((f - 0.62f) / 0.25f);
                                 break;
                             }
-                        default: // smooth: very soft large-scale variation with a faint seam line
+                        default: // smooth: very soft large-scale variation, no positional features
                             {
-                                float f = Fbm(u * scale * 0.5f + ox, v * scale * 0.5f + oy, 3);
-                                float seam = 1f - Mathf.Clamp01(Mathf.Abs(v - 0.5f) / 0.006f);
-                                p = f * 0.5f + 0.25f; h = f * 0.3f + seam * 0.4f;
-                                e = seam;
+                                // This preset used to draw a hard line at v = 0.5 as a moulding seam, and put
+                                // all of its emission on it. On a lathed body that read as a seam; wrapped on
+                                // the head, v = 0.5 is the equator, so it drew a glowing bar straight across
+                                // Wintry's eyes. Emission now follows the noise instead of a fixed latitude,
+                                // which reads the same on every part and lands on nothing in particular.
+                                float f = TileFbm(u, v, scale * 0.5f, ox, oy, 3);
+                                p = f * 0.5f + 0.25f;
+                                h = f * 0.35f;
+                                e = Mathf.Clamp01((f - 0.66f) / 0.26f) * 0.6f;
                                 break;
                             }
                     }
                     height[i] = h; pattern[i] = p; emission[i] = e;
                 }
             }
+        }
+
+        /// <summary>
+        /// Cavity occlusion from the height field: a texel sitting below the average of the ring around it is
+        /// in a crease and gets darker. Two radii are combined so both the fine pattern and the broad shapes
+        /// contribute. This is what stops a procedural surface reading as flat plastic, and it is the one term
+        /// that still helps when the shader falls back to unlit, because it is multiplied into the base colour.
+        /// </summary>
+        private static float[] BuildOcclusionField(int n, float[] height)
+        {
+            var ao = new float[n * n];
+            for (int y = 0; y < n; y++)
+            {
+                for (int x = 0; x < n; x++)
+                {
+                    float h = height[y * n + x];
+                    float open = 0f;
+                    for (int r = 1; r <= 2; r++)
+                    {
+                        int step = r * Mathf.Max(1, n / 128);
+                        float ring = 0f;
+                        ring += height[y * n + (x - step + n) % n];
+                        ring += height[y * n + (x + step) % n];
+                        ring += height[((y - step + n) % n) * n + x];
+                        ring += height[((y + step) % n) * n + x];
+                        ring += height[((y - step + n) % n) * n + (x - step + n) % n];
+                        ring += height[((y - step + n) % n) * n + (x + step) % n];
+                        ring += height[((y + step) % n) * n + (x - step + n) % n];
+                        ring += height[((y + step) % n) * n + (x + step) % n];
+                        open += h - ring / 8f;
+                    }
+                    // open > 0 means the texel stands proud, < 0 means it sits in a crease
+                    ao[y * n + x] = Mathf.Clamp01(0.82f + open * 1.4f);
+                }
+            }
+            return ao;
+        }
+
+        /// <summary>
+        /// FBM that meets itself at u = 1, by crossfading into a copy shifted one full period and weighting the
+        /// blend by u itself.
+        /// </summary>
+        /// <remarks>
+        /// Perlin noise has no period, so on a sphere the pattern simply stopped matching where u wraps and left
+        /// a visible line down the model. Splitting the uv seam fixed the smear across that boundary; this fixes
+        /// the content across it. Costs two samples instead of one, paid once when a look is generated.
+        /// </remarks>
+        private static float TileFbm(float u01, float v, float scale, float ox, float oy, int octaves)
+        {
+            float a = Fbm(u01 * scale + ox, v * scale + oy, octaves);
+            float b = Fbm((u01 - 1f) * scale + ox, v * scale + oy, octaves);
+            return Mathf.Lerp(a, b, Mathf.SmoothStep(0f, 1f, u01));
+        }
+
+        private static float TileRidged(float u01, float v, float scale, float ox, float oy)
+        {
+            float a = Ridged(u01 * scale + ox, v * scale + oy);
+            float b = Ridged((u01 - 1f) * scale + ox, v * scale + oy);
+            return Mathf.Lerp(a, b, Mathf.SmoothStep(0f, 1f, u01));
         }
 
         private static float Fbm(float x, float y, int octaves)
@@ -111,7 +178,7 @@ namespace WintryVR.AssetGeneration
             return t;
         }
 
-        private static Texture2D BuildBaseColor(WintryLookDefinition look, int n, float[] pattern, float[] emissionMask)
+        private static Texture2D BuildBaseColor(WintryLookDefinition look, int n, float[] pattern, float[] emissionMask, float[] occlusion)
         {
             var t = NewTex(n, "BaseColor", false);
             var px = new Color32[n * n];
@@ -120,6 +187,9 @@ namespace WintryVR.AssetGeneration
                 float p = pattern[i];
                 Color c = Color.Lerp(look.PrimaryColor, look.SecondaryColor, p * look.PatternStrength);
                 c = Color.Lerp(c, look.EmissionColor, emissionMask[i] * look.PatternStrength * 0.5f);
+                // keep a little cavity in the albedo so the form still reads under the unlit fallback shaders
+                float ao = Mathf.Lerp(1f, occlusion[i], 0.45f);
+                c = new Color(c.r * ao, c.g * ao, c.b * ao, c.a);
                 px[i] = c;
             }
             t.SetPixels32(px); t.Apply(true, false);
@@ -173,6 +243,21 @@ namespace WintryVR.AssetGeneration
             for (int i = 0; i < px.Length; i++) px[i] = look.EmissionColor * mask[i];
             t.SetPixels32(px); t.Apply(true, false);
             return t;
+        }
+
+        /// <summary>
+        /// Frees a set's textures. Generated maps are plain <see cref="Texture2D"/> instances, so nothing
+        /// collects them on their own: changing look six times without this leaks six full PBR sets.
+        /// </summary>
+        public static void Release(GeneratedTextureSet set)
+        {
+            if (set == null) return;
+            foreach (var t in new[] { set.BaseColor, set.Normal, set.Roughness, set.Metallic, set.Emission, set.Detail, set.Occlusion })
+            {
+                if (t == null) continue;
+                if (Application.isPlaying) UnityEngine.Object.Destroy(t); else UnityEngine.Object.DestroyImmediate(t);
+            }
+            set.BaseColor = set.Normal = set.Roughness = set.Metallic = set.Emission = set.Detail = set.Occlusion = null;
         }
 
         /// <summary>PNG bytes for caching/export.</summary>

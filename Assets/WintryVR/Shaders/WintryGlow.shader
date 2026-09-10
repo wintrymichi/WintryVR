@@ -5,9 +5,13 @@ Shader "WintryVR/Glow"
     Properties
     {
         _Color ("Color", Color) = (0.6, 0.85, 1, 1)
-        _EmissionColor ("Emission", Color) = (0.45, 0.8, 1, 1)
-        _EmissionStrength ("Emission Strength", Range(0, 4)) = 1.5
+        // The emission colour carries its own intensity: every caller passes colour x strength, so the shader
+        // must not scale it a second time (see WintryMaterials.Glow).
+        _EmissionColor ("Emission (intensity included)", Color) = (0.45, 0.8, 1, 1)
         _Fresnel ("Fresnel Power", Range(0.2, 6)) = 2
+        // 0 = emission only on the silhouette rim, 1 = evenly lit across the surface. A shell like the Core orb
+        // wants the rim; a lens like an eye has to be brightest where you are looking straight at it.
+        _CoreGlow ("Core vs rim glow", Range(0, 1)) = 0.35
         _Alpha ("Alpha", Range(0, 1)) = 1
     }
     SubShader
@@ -30,8 +34,8 @@ Shader "WintryVR/Glow"
             CBUFFER_START(UnityPerMaterial)
                 half4 _Color;
                 half4 _EmissionColor;
-                half _EmissionStrength;
                 half _Fresnel;
+                half _CoreGlow;
                 half _Alpha;
             CBUFFER_END
 
@@ -72,7 +76,16 @@ Shader "WintryVR/Glow"
                 half3 v = normalize(IN.viewDirWS);
                 half ndv = saturate(dot(n, v));
                 half rim = pow(1.0h - ndv, _Fresnel);
-                half3 col = _Color.rgb + _EmissionColor.rgb * _EmissionStrength * (0.35h + 0.65h * rim);
+                half3 col = _Color.rgb + _EmissionColor.rgb * (_CoreGlow + (1.0h - _CoreGlow) * rim);
+
+                // No HDR or bloom in this pipeline, so anything above 1 would clip per channel. Clipping eats
+                // the channels that are already high first, which turns Wintry's cool blue into white and
+                // erases the difference between a calm look and a bright one. Compressing the peak and
+                // rescaling all three channels by the same factor keeps the hue exactly and keeps brighter
+                // still reading as brighter.
+                half peak = max(col.r, max(col.g, col.b));
+                col = peak > 1e-4h ? col * ((1.0h - exp(-peak)) / peak) : col;
+
                 half alpha = saturate(_Alpha * (0.55h + 0.45h * rim));
                 return half4(col, alpha);
             }

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace WintryVR.Core
 {
@@ -11,19 +12,51 @@ namespace WintryVR.Core
     {
         private static readonly System.Collections.Generic.Dictionary<string, Material> _cache = new System.Collections.Generic.Dictionary<string, Material>();
 
+        /// <summary>
+        /// True when a scriptable render pipeline (URP here) is actually driving rendering.
+        /// </summary>
+        public static bool UniversalPipelineActive =>
+            GraphicsSettings.currentRenderPipeline != null || GraphicsSettings.defaultRenderPipeline != null;
+
+        /// <summary>
+        /// Picks the first shader in <paramref name="names"/> that exists <em>and</em> suits the active pipeline.
+        /// </summary>
+        /// <remarks>
+        /// The URP package being installed is not the same as URP being switched on. With the package present
+        /// but no pipeline asset assigned in Project Settings → Graphics, Unity renders through the built-in
+        /// pipeline while <c>Shader.Find</c> still happily returns URP-only shaders — so the intended fallback
+        /// never fired and the UI drew URP glass under a pipeline that cannot feed it. Skipping the
+        /// pipeline-specific names when URP is off makes the fallback real, and the app looks plainer instead
+        /// of wrong on a project that has not had a URP asset assigned yet.
+        /// </remarks>
         public static Shader FindShader(params string[] names)
         {
-            foreach (var n in names) { var s = Shader.Find(n); if (s != null) return s; }
-            return null;
+            bool urp = UniversalPipelineActive;
+            foreach (var n in names)
+            {
+                if (!urp && IsUniversalOnly(n)) continue;
+                var s = Shader.Find(n);
+                if (s != null) return s;
+            }
+            // never hand back null: a null shader is the magenta this whole method exists to avoid
+            return Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default");
         }
 
-        public static Material Glow(Color color, Color emission, float strength = 1.5f, float alpha = 1f, float fresnel = 2f)
+        private static bool IsUniversalOnly(string shaderName)
+        {
+            return shaderName != null
+                && (shaderName.StartsWith("WintryVR/") || shaderName.StartsWith("Universal Render Pipeline/"));
+        }
+
+        public static Material Glow(Color color, Color emission, float strength = 1.5f, float alpha = 1f, float fresnel = 2f, float coreGlow = 0.35f)
         {
             var shader = FindShader("WintryVR/Glow", "Universal Render Pipeline/Unlit", "Unlit/Color");
             var m = new Material(shader) { name = "WintryGlow" };
             Set(m, "_Color", color); Set(m, "_BaseColor", color);
+            // intensity is folded into the colour, which is the convention every SetEmission caller follows;
+            // WintryVR/Glow therefore uses _EmissionColor as-is rather than scaling it again
             Set(m, "_EmissionColor", emission * strength);
-            SetF(m, "_EmissionStrength", strength); SetF(m, "_Fresnel", fresnel); SetF(m, "_Alpha", alpha);
+            SetF(m, "_Fresnel", fresnel); SetF(m, "_Alpha", alpha); SetF(m, "_CoreGlow", coreGlow);
             if (alpha < 0.999f) MakeTransparent(m);
             return m;
         }
@@ -47,10 +80,52 @@ namespace WintryVR.Core
             var c = tint; c.a = alpha;
             Set(m, "_Color", c); Set(m, "_BaseColor", c);
             SetF(m, "_Fresnel", fresnel); Set(m, "_EdgeColor", new Color(1f, 1f, 1f, 0.35f));
+            // Refraction needs something to refract. The pipeline only resolves _CameraOpaqueTexture when the
+            // URP asset asks for it, and sampling it otherwise reads black, so the bevel would go dark instead
+            // of glassy. Off unless the pipeline really provides it.
+            SetF(m, "_Refraction", SceneColorAvailable ? 0.022f : 0f);
             MakeTransparent(m);
-            m.renderQueue = 3000;
+            // Below the transparent default so a plate always draws before the text sitting on it. Both are
+            // transparent and were within a few millimetres of each other, so per-object distance sorting
+            // decided the order arbitrarily — and whenever the plate won, it composited its refracted
+            // background straight over its own title. Still above 2500, so the opaque texture it samples has
+            // already been resolved.
+            m.renderQueue = 2960;
             return m;
         }
+
+        private static int _sceneColor = -1;
+
+        /// <summary>
+        /// Whether the active URP asset resolves a camera opaque texture this frame.
+        /// </summary>
+        /// <remarks>
+        /// Reached by reflection so the project still builds with URP absent. On a headset this describes the
+        /// virtual scene only: passthrough is composited underneath by the runtime and never reaches the colour
+        /// buffer, so glass refracts other panels and Wintry, never the room. The room comes through by alpha.
+        /// </remarks>
+        public static bool SceneColorAvailable
+        {
+            get
+            {
+                if (_sceneColor >= 0) return _sceneColor == 1;
+                _sceneColor = 0;
+                var asset = GraphicsSettings.currentRenderPipeline ?? GraphicsSettings.defaultRenderPipeline;
+                if (asset != null)
+                {
+                    var prop = asset.GetType().GetProperty("supportsCameraOpaqueTexture");
+                    if (prop != null && prop.PropertyType == typeof(bool))
+                    {
+                        try { if ((bool)prop.GetValue(asset, null)) _sceneColor = 1; }
+                        catch { /* leave it off: a wrong guess here costs a black edge on every panel */ }
+                    }
+                }
+                return _sceneColor == 1;
+            }
+        }
+
+        /// <summary>Forgets the cached pipeline probe, for when the render pipeline is swapped at runtime.</summary>
+        public static void InvalidatePipelineProbe() { _sceneColor = -1; }
 
         public static Material Unlit(Color color, bool transparent = false)
         {
@@ -77,6 +152,23 @@ namespace WintryVR.Core
             m.EnableKeyword("_ALPHABLEND_ON");
             m.DisableKeyword("_ALPHATEST_ON");
             m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+
+        /// <summary>
+        /// Tells a glass material the real dimensions of the plate it is drawn on, so its edge band can be
+        /// measured in metres and keep one thickness on both axes and around the corners. Harmless when the
+        /// shader has fallen back to a plain unlit one, which simply has no such properties.
+        /// </summary>
+        public static void SetPanelShape(Material m, float width, float height, float radius, float edgeWidth = 0.006f)
+        {
+            if (m == null) return;
+            if (m.HasProperty("_Size")) m.SetVector("_Size", new Vector4(Mathf.Max(1e-4f, width), Mathf.Max(1e-4f, height), 0f, 0f));
+            SetF(m, "_Radius", radius);
+            SetF(m, "_EdgeWidth", edgeWidth);
+            // the bevel is the lens: wide enough to read as thickness, never so wide it eats the flat middle
+            SetF(m, "_Bevel", Mathf.Clamp(radius * 0.85f, edgeWidth * 1.5f, Mathf.Min(width, height) * 0.3f));
+            // must match the mesh silhouette or the shader's outline is cropped by the geometry
+            SetF(m, "_Corner", ProceduralMeshes.SquircleExponent);
         }
 
         public static void SetColor(Material m, Color c) { Set(m, "_BaseColor", c); Set(m, "_Color", c); }

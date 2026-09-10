@@ -36,3 +36,23 @@ sysinfo.txt
 .DS_Store
 # Generated asset cache (runtime + editor pipeline output)
 /WintryAssetCache/
+
+# Offline verification harness (tools/offline-check) — keep its project files, drop build output
+!tools/offline-check/*.csproj
+tools/offline-check/bin/
+tools/offline-check/obj/
+
+# Look sheets rendered by tools/preview
+/preview-renders/
+/Captures/
+
+# Unity Hub module install transcript
+/android-module-install.log*
+
+# Local build output
+/dist/
+
+# Unity 6 native build intermediates (CMake/ninja for the frame-pacing library), regenerated every build
+/.utmp/
+# The config itself is git-ignored, so its .meta would point at a file nobody else has
+/Assets/StreamingAssets/wintry.config.json.meta

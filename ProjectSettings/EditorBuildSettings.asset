@@ -1,0 +1,14 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/WintryVR/Scenes/WintryVR_Main.unity
+    guid: 2fbcc559c4cc1c7e07309d0e58028011
+  m_configObjects:
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: cf787dfddd1f54641a0c9415b1ecfdc7, type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: d510fc426971aa54c98b0a567208b652, type: 2}
+  m_UseUCBPForAssetBundles: 0
