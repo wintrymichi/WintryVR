@@ -66,6 +66,7 @@ namespace WintryVR.EditorTools
                     "Minimum SDK", "expected 32 or higher, found " + (int)PlayerSettings.Android.minSdkVersion),
                 new Check(FirstGraphicsApiIsVulkan(),
                     "Graphics API", "expected Vulkan first for Android"),
+                ApplicationEntryCheck(),
                 new Check(File.Exists(Path.Combine(Application.dataPath, "StreamingAssets/wintry.config.json")),
                     "Runtime config", "StreamingAssets/wintry.config.json (run Setup → Create wintry.config.json)"),
                 new Check(SceneIsInBuild(), "Main scene", ScenePath + " listed and enabled in Build Settings"),
@@ -74,6 +75,23 @@ namespace WintryVR.EditorTools
                 XrLoaderCheck()
             };
             return checks;
+        }
+
+        /// <summary>
+        /// The Android entry point must be Activity: the manifest declares UnityPlayerActivity as the VR entry,
+        /// and with GameActivity that class is not in the APK, so the headset launches it and it dies at once.
+        /// </summary>
+        private static Check ApplicationEntryCheck()
+        {
+#if UNITY_2023_1_OR_NEWER
+            var entry = PlayerSettings.Android.applicationEntry;
+            bool ok = entry == AndroidApplicationEntry.Activity;
+            return new Check(ok, "Application entry", ok
+                ? "Activity (UnityPlayerActivity)"
+                : "expected Activity, found " + entry + " — the manifest's UnityPlayerActivity would be missing from the APK and the app would not open on the headset (run Setup → Configure Player Settings)");
+#else
+            return new Check(true, "Application entry", "Activity (only option in this Unity version)");
+#endif
         }
 
         private static bool FirstGraphicsApiIsVulkan()

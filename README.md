@@ -292,11 +292,21 @@ Two details it handles that cost an afternoon to find:
   handed a project-local temp folder to avoid it. One machine here failed exactly this way — AF_UNIX connect
   returned "Invalid argument" for `%TEMP%` and worked in every other folder — and `netsh winsock reset` did not
   help; only moving the socket did.
+* Unity 6 defaults the Android **Application Entry Point** to *GameActivity*, and since `ProjectSettings/` is
+  not versioned every fresh clone inherits that. The APK then contains only `UnityPlayerGameActivity`, while
+  our manifest declares `UnityPlayerActivity` as the VR entry — the one Horizon OS launches. The class is not
+  there, the activity dies before the first frame, and in the headset library the icon simply does nothing.
+  The setup step pins the entry point to *Activity*, and **Verify project setup** reports it as "Application
+  entry". If you have ever built with GameActivity, uninstall the old package before installing the new one.
 * `Assets/Plugins/Android/AndroidManifest.xml` deliberately sets no `android:label`. Unity's launcher manifest
   already sets it from `PlayerSettings.productName`, and declaring it twice fails the manifest merger. Rename
   the app in Player Settings.
 
-`ProjectSettings/` holds only the editor version, so Unity generates its defaults on first open and the setup
-steps above fill them in. Run **WintryVR → Setup → Verify project setup** to see what is still missing; it
-checks the build target, colour space, scripting backend, architecture, minimum SDK, graphics API, runtime
-config, scene list, render pipeline, shader compilation and XR loader.
+`ProjectSettings/` is versioned, which it was not at first: the project used to ship only the editor version and
+rely on the setup steps to fill in Unity's defaults. That is what let the entry-point bug happen, because the
+one setting that decides whether the app opens at all lives in `ProjectSettings.asset` and was regenerated as
+Unity's default on every clone. A setting that has to be re-applied by hand is a setting that is one forgotten
+menu item away from being wrong. Run **WintryVR → Setup → Verify project setup** to check the state of the
+project anyway; it checks the build target, colour space, scripting backend, architecture, minimum SDK,
+graphics API, application entry point, runtime config, scene list, render pipeline, shader compilation and XR
+loader.

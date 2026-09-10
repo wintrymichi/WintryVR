@@ -28,6 +28,7 @@ namespace WintryVR.EditorTools
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)32;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
+            PinApplicationEntryToActivity();
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.Vulkan, GraphicsDeviceType.OpenGLES3 });
             PlayerSettings.SetMobileMTRendering(NamedBuildTarget.Android, true);
@@ -44,6 +45,32 @@ namespace WintryVR.EditorTools
             QualitySettings.shadows = ShadowQuality.Disable;
             Debug.Log("[WintryVR] Player settings configured for Meta Quest 3 / 3S. Now enable the OpenXR (or Oculus) loader under Project Settings → XR Plug-in Management → Android, and set the Meta XR feature group.");
             CreateStreamingAssetsConfigIfMissing();
+        }
+
+        /// <summary>
+        /// Forces the Android application entry point to the classic <c>Activity</c>.
+        /// </summary>
+        /// <remarks>
+        /// Unity 6 defaults new projects to <c>GameActivity</c>, and this repository ships no
+        /// <c>ProjectSettings.asset</c>, so every fresh clone inherits that default. With GameActivity the APK
+        /// only contains <c>com.unity3d.player.UnityPlayerGameActivity</c>: Unity compiles the activity Java
+        /// source that matches the setting and drops the other block from its manifest. Our own manifest in
+        /// <c>Assets/Plugins/Android</c> declares <c>UnityPlayerActivity</c> with the
+        /// <c>com.oculus.intent.category.VR</c> category, which is the entry Horizon OS launches — so the
+        /// headset started an activity whose class was not in the package, and the app died before drawing a
+        /// frame. From the library that looks like "tap the icon, nothing happens". Meta's own project setup
+        /// tool flags GameActivity for the same reason. This is what
+        /// <see cref="WintrySetupVerifier"/> checks under "Application entry".
+        /// </remarks>
+        public static void PinApplicationEntryToActivity()
+        {
+#if UNITY_2023_1_OR_NEWER
+            if (PlayerSettings.Android.applicationEntry != AndroidApplicationEntry.Activity)
+            {
+                PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.Activity;
+                Debug.Log("[WintryVR] Android application entry point set to Activity (UnityPlayerActivity), which is the class the manifest and the Quest launcher expect.");
+            }
+#endif
         }
 
         [MenuItem("WintryVR/Setup/Create wintry.config.json from example")]

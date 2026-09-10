@@ -6,7 +6,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AssemblyName>WintryCheck.Android</AssemblyName>
     <RootNamespace>WintryCheck</RootNamespace>
-    <DefineConstants>UNITY_ANDROID;UNITY_64;UNITY_2020_1_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_6000_0_OR_NEWER;WINTRY_URP</DefineConstants>
+    <DefineConstants>UNITY_ANDROID;UNITY_64;UNITY_2020_1_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_2023_1_OR_NEWER;UNITY_6000_0_OR_NEWER;WINTRY_URP</DefineConstants>
     <NoWarn>1591;8981</NoWarn>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <BaseIntermediateOutputPath>obj\Android\</BaseIntermediateOutputPath>

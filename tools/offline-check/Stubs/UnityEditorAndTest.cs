@@ -303,6 +303,7 @@ namespace UnityEditor
             public static AndroidSdkVersions minSdkVersion { get; set; }
             public static AndroidSdkVersions targetSdkVersion { get; set; }
             public static AndroidArchitecture targetArchitectures { get; set; }
+            public static AndroidApplicationEntry applicationEntry { get; set; } = AndroidApplicationEntry.GameActivity;
             public static bool forceInternetPermission { get; set; }
             public static int bundleVersionCode { get; set; }
             public static bool forceSDCardPermission { get; set; }
@@ -317,6 +318,7 @@ namespace UnityEditor
     public enum ColorSpace { Uninitialized = -1, Gamma = 0, Linear = 1 }
     public enum AndroidSdkVersions { AndroidApiLevelAuto = 0, AndroidApiLevel29 = 29, AndroidApiLevel30 = 30, AndroidApiLevel32 = 32, AndroidApiLevel33 = 33 }
     [Flags] public enum AndroidArchitecture { None = 0, ARMv7 = 1, ARM64 = 2, All = 3 }
+    [Flags] public enum AndroidApplicationEntry { Activity = 1, GameActivity = 2 }
     public enum BuildTargetGroup { Unknown, Standalone, Android, iOS, WebGL }
     public enum BuildTarget { NoTarget = -2, StandaloneWindows64 = 19, Android = 13, iOS = 9, WebGL = 20 }
 

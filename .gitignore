@@ -51,3 +51,8 @@ tools/offline-check/obj/
 
 # Local build output
 /dist/
+
+# Unity 6 native build intermediates (CMake/ninja for the frame-pacing library), regenerated every build
+/.utmp/
+# The config itself is git-ignored, so its .meta would point at a file nobody else has
+/Assets/StreamingAssets/wintry.config.json.meta

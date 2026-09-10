@@ -38,6 +38,13 @@
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest3|quest3s" />
         <meta-data android:name="com.oculus.handtracking.frequency" android:value="HIGH" />
         <meta-data android:name="com.oculus.handtracking.version" android:value="V2.0" />
+        <!--
+          This must stay UnityPlayerActivity, and the player's Android "Application Entry Point" must be
+          Activity (WintryProjectSetup pins it; the setup verifier checks it). Unity 6 defaults to GameActivity,
+          which puts only UnityPlayerGameActivity in the APK; Horizon OS launches the activity carrying the
+          com.oculus.intent.category.VR category — this one — and a missing class means the app closes before
+          it draws anything. In the headset library that looks like "tap the icon, nothing happens".
+        -->
         <activity android:name="com.unity3d.player.UnityPlayerActivity"
                   android:theme="@style/UnityThemeSelector"
                   android:screenOrientation="landscape"
