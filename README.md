@@ -286,6 +286,15 @@ Two details it handles that cost an afternoon to find:
   flat on the headset.
 * The OpenXR package registers its settings during a build and then aborts that same build with "OpenXR
   Settings found in project but not yet loaded. Please build again." The build retries once for that reason.
+* Gradle reaches its daemon through a java.nio Selector, which on Windows is a pair of AF_UNIX sockets created
+  in the temp directory. If that directory cannot host them the build dies with `java.io.IOException: Unable to
+  establish loopback connection`, after IL2CPP has compiled and with nothing pointing at a directory. Gradle is
+  handed a project-local temp folder to avoid it. One machine here failed exactly this way — AF_UNIX connect
+  returned "Invalid argument" for `%TEMP%` and worked in every other folder — and `netsh winsock reset` did not
+  help; only moving the socket did.
+* `Assets/Plugins/Android/AndroidManifest.xml` deliberately sets no `android:label`. Unity's launcher manifest
+  already sets it from `PlayerSettings.productName`, and declaring it twice fails the manifest merger. Rename
+  the app in Player Settings.
 
 `ProjectSettings/` holds only the editor version, so Unity generates its defaults on first open and the setup
 steps above fill them in. Run **WintryVR → Setup → Verify project setup** to see what is still missing; it

@@ -61,6 +61,7 @@ namespace WintryVR.EditorTools
                 EnsureSceneInBuild();
                 AssetDatabase.SaveAssets();
 
+                RedirectTempForGradle();
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output)));
                 var options = new BuildPlayerOptions
                 {
@@ -99,6 +100,28 @@ namespace WintryVR.EditorTools
                 Debug.LogError("[WintryVR] Build failed: " + ex);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Points the temp directory Gradle inherits at a project-local folder.
+        /// </summary>
+        /// <remarks>
+        /// Gradle talks to its daemon through a java.nio Selector, which on Windows is built on a pair of
+        /// AF_UNIX sockets created inside the temp directory. That is fine until the temp directory itself
+        /// cannot host them: on one machine here AF_UNIX bind succeeded and connect returned "Invalid argument"
+        /// for %TEMP% and nowhere else, so every Android build died with
+        /// <c>java.io.IOException: Unable to establish loopback connection</c> — after IL2CPP had compiled, and
+        /// with nothing in the message to suggest a directory was to blame. Handing Gradle a folder inside the
+        /// project sidesteps whatever is wrong with the user's temp, and costs nothing when it is healthy.
+        /// </remarks>
+        private static void RedirectTempForGradle()
+        {
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            string temp = Path.Combine(projectRoot, "Temp", "BuildTemp");
+            Directory.CreateDirectory(temp);
+            Environment.SetEnvironmentVariable("TEMP", temp);
+            Environment.SetEnvironmentVariable("TMP", temp);
+            Debug.Log("[WintryVR] Gradle temp directory: " + temp);
         }
 
         private static void EnsureSceneInBuild()
