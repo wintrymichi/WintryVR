@@ -41,3 +41,7 @@ sysinfo.txt
 !tools/offline-check/*.csproj
 tools/offline-check/bin/
 tools/offline-check/obj/
+
+# Look sheets rendered by tools/preview
+/preview-renders/
+/Captures/
